@@ -88,7 +88,9 @@ public enum ErrorCode {
     BUILT_IN_ROLE_FORBIDDEN(100020, "内置角色不能修改或删除"),
     ROLE_IN_USE(100021, "角色正在使用，不能删除"),
     ROLE_MENU_INVALID(100022, "角色菜单分配不合法"),
-    ROLE_CODE_EXISTS(100023, "角色编码已存在");
+    ROLE_CODE_EXISTS(100023, "角色编码已存在"),
+    PROJECT_APP_KEY_EXISTS(100024, "App Key 已存在"),
+    PROJECT_NOT_FOUND(100025, "项目不存在或已关闭");
 
     private final int code;
     private final String message;

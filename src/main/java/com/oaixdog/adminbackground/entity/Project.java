@@ -13,5 +13,8 @@ public class Project {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+    private String appKey;
     private String name;
+    private Long createdAt;
+    private Boolean closed;
 }

@@ -9,5 +9,6 @@ import lombok.Setter;
 @Protocol(id = 3003)
 public class ProjectCreateRequest {
 
+    private String appKey;
     private String name;
 }

@@ -10,11 +10,11 @@ import java.util.List;
 public interface AccountProjectMapper {
 
     @Select("""
-            select p.id as project_id, p.name as name, r.id as role_id, r.name as role_name
+            select p.id as project_id, p.app_key, p.name as name, p.created_at, r.id as role_id, r.name as role_name
             from project_user pu
             join project p on p.id = pu.project_id
             join role r on r.id = pu.role_id
-            where pu.account_id = #{accountId}
+            where pu.account_id = #{accountId} and p.closed = false
             order by p.id
             """)
     List<AccountProjectRow> listByAccountId(@Param("accountId") long accountId);
@@ -22,7 +22,9 @@ public interface AccountProjectMapper {
     class AccountProjectRow {
 
         private Long projectId;
+        private String appKey;
         private String name;
+        private Long createdAt;
         private Long roleId;
         private String roleName;
 
@@ -32,6 +34,22 @@ public interface AccountProjectMapper {
 
         public void setProjectId(Long projectId) {
             this.projectId = projectId;
+        }
+
+        public String getAppKey() {
+            return appKey;
+        }
+
+        public void setAppKey(String appKey) {
+            this.appKey = appKey;
+        }
+
+        public Long getCreatedAt() {
+            return createdAt;
+        }
+
+        public void setCreatedAt(Long createdAt) {
+            this.createdAt = createdAt;
         }
 
         public String getName() {

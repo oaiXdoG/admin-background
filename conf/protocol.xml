@@ -17,6 +17,8 @@
         <protocol location="com.oaixdog.adminbackground.protocol.LoginResponse"/>
         <protocol location="com.oaixdog.adminbackground.protocol.ProjectListRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.ProjectCreateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ProjectUpdateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ProjectCloseRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.ProjectSwitchRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.AccountCreateRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.AccountListRequest"/>

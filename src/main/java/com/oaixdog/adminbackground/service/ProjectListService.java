@@ -2,6 +2,7 @@ package com.oaixdog.adminbackground.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.oaixdog.adminbackground.entity.Account;
+import com.oaixdog.adminbackground.entity.Project;
 import com.oaixdog.adminbackground.exception.BusinessException;
 import com.oaixdog.adminbackground.exception.ErrorCode;
 import com.oaixdog.adminbackground.mapper.AccountMapper;
@@ -36,10 +37,12 @@ public class ProjectListService {
         List<ProjectListResponse.ProjectItem> projects = new ArrayList<>();
         Long currentProjectId = null;
         if (permissionService.hasGlobalRole(account)) {
-            projectMapper.selectList(null).forEach(project -> {
+            projectMapper.selectList(Wrappers.<Project>lambdaQuery().eq(Project::getClosed, false)).forEach(project -> {
                 ProjectListResponse.ProjectItem item = new ProjectListResponse.ProjectItem();
                 item.setProjectId(project.getId());
+                item.setAppKey(project.getAppKey());
                 item.setName(project.getName());
+                item.setCreatedAt(project.getCreatedAt());
                 item.setRoleName("超级管理员");
                 projects.add(item);
             });
@@ -50,7 +53,9 @@ public class ProjectListService {
             for (AccountProjectMapper.AccountProjectRow row : rows) {
                 ProjectListResponse.ProjectItem item = new ProjectListResponse.ProjectItem();
                 item.setProjectId(row.getProjectId());
+                item.setAppKey(row.getAppKey());
                 item.setName(row.getName());
+                item.setCreatedAt(row.getCreatedAt());
                 item.setRoleId(row.getRoleId());
                 item.setRoleName(row.getRoleName());
                 projects.add(item);

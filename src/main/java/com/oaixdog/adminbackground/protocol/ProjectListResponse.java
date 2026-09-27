@@ -24,7 +24,9 @@ public class ProjectListResponse {
     public static class ProjectItem {
 
         private long projectId;
+        private String appKey;
         private String name;
+        private Long createdAt;
         private Long roleId;
         private String roleName;
     }

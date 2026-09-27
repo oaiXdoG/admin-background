@@ -10,6 +10,8 @@ import com.oaixdog.adminbackground.protocol.MenuListRequest;
 import com.oaixdog.adminbackground.protocol.MenuRemoveRequest;
 import com.oaixdog.adminbackground.protocol.MenuUpdateRequest;
 import com.oaixdog.adminbackground.protocol.ProjectCreateRequest;
+import com.oaixdog.adminbackground.protocol.ProjectUpdateRequest;
+import com.oaixdog.adminbackground.protocol.ProjectCloseRequest;
 import com.oaixdog.adminbackground.protocol.ProjectListRequest;
 import com.oaixdog.adminbackground.protocol.ProjectSwitchRequest;
 import com.oaixdog.adminbackground.protocol.RoleCreateRequest;
@@ -48,6 +50,8 @@ public class Application {
                 case "POST /api/login" -> parseLoginRequest(rawRequest);
                 case "POST /api/project/list" -> parseProjectListRequest(rawRequest);
                 case "POST /api/project/create" -> parseRequest(rawRequest, ProjectCreateRequest.class);
+                case "POST /api/project/update" -> parseRequest(rawRequest, ProjectUpdateRequest.class);
+                case "POST /api/project/close" -> parseRequest(rawRequest, ProjectCloseRequest.class);
                 case "POST /api/project/switch" -> parseRequest(rawRequest, ProjectSwitchRequest.class);
                 case "POST /api/account/create" -> parseRequest(rawRequest, AccountCreateRequest.class);
                 case "POST /api/account/list" -> parseRequest(rawRequest, AccountListRequest.class);
