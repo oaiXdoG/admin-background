@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<protocols>
+    <module id="1" name="native">
+        <protocol location="com.zfoo.net.router.attachment"/>
+    </module>
+
+    <module id="2" name="common">
+        <protocol location="com.zfoo.net.packet.common.Message"/>
+        <protocol location="com.zfoo.net.packet.common.Error"/>
+        <protocol location="com.zfoo.net.packet.common.Heartbeat"/>
+        <protocol location="com.zfoo.net.packet.common.Ping"/>
+        <protocol location="com.zfoo.net.packet.common.Pong"/>
+    </module>
+
+    <module id="3" name="admin">
+        <protocol location="com.oaixdog.adminbackground.protocol.LoginRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.LoginResponse"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ProjectListRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ProjectCreateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ProjectSwitchRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.AccountCreateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.AccountListRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.MenuListRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.MenuCreateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.MenuUpdateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.MenuRemoveRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.AccessMenuRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.RoleListRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.RoleCreateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.RoleUpdateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.RoleRemoveRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.RoleMenuListRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.RoleMenuUpdateRequest"/>
+    </module>
+
+</protocols>
