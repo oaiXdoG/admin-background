@@ -32,7 +32,7 @@ public class AccessController {
             }
             String authorization = attachment.getFullHttpRequest().headers().get(HttpHeaderNames.AUTHORIZATION);
             attachment.setHttpResponseStatus(HttpResponseStatus.OK);
-            NetContext.getRouter().send(session, ApiResponse.success(permissionService.listMenus(authorization)), attachment);
+            NetContext.getRouter().send(session, ApiResponse.success(permissionService.listMenus(authorization, request.getProjectId())), attachment);
         } catch (BusinessException exception) {
             log.warn("当前菜单业务失败: {}", exception.getMessage());
             attachment.setHttpResponseStatus(HttpResponseStatus.OK);

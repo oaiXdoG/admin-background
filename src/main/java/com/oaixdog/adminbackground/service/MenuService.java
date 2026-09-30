@@ -16,6 +16,8 @@ import com.oaixdog.adminbackground.protocol.MenuUpdateRequest;
 import com.zfoo.protocol.util.StringUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.List;
@@ -47,13 +49,26 @@ public class MenuService {
         return MenuResponse.listOf(menus);
     }
 
+    @Transactional
     public MenuResponse create(String authorization, MenuCreateRequest request) {
         permissionService.requireMenu(authorization, "manage_menu");
+        Long menuId = request.getMenuId();
+        if (menuId == null || menuId <= 0 || menuId > 9007199254740991L) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST);
+        }
+        if (menuMapper.selectById(menuId) != null) {
+            throw new BusinessException(ErrorCode.MENU_ID_EXISTS);
+        }
         Menu menu = new Menu();
+        menu.setId(menuId);
         fill(menu, request.getParentId(), request.getMenuType(), request.getName(), request.getIcon(),
                 request.getRouteName(), request.getRoutePath(), request.getStatus(), request.getHidden(), request.getSort());
-        requireValidParent(null, menu.getParentId());
-        menuMapper.insert(menu);
+        requireValidParent(menuId, menu.getParentId());
+        try {
+            menuMapper.insert(menu);
+        } catch (DuplicateKeyException exception) {
+            throw new BusinessException(ErrorCode.MENU_ID_EXISTS);
+        }
         assignToSuperAdmin(menu.getId());
         return MenuResponse.valueOf(menu);
     }
@@ -90,6 +105,7 @@ public class MenuService {
         return MenuResponse.valueOf(menu);
     }
 
+    @Transactional
     public void remove(String authorization, Long menuId) {
         permissionService.requireMenu(authorization, "manage_menu");
         if (menuId == null) {
@@ -105,6 +121,7 @@ public class MenuService {
         if (childCount(menuId) > 0) {
             throw new BusinessException(ErrorCode.MENU_NOT_EMPTY);
         }
+        roleMenuMapper.delete(Wrappers.<RoleMenu>lambdaQuery().eq(RoleMenu::getMenuId, menuId));
         menuMapper.deleteById(menuId);
     }
 

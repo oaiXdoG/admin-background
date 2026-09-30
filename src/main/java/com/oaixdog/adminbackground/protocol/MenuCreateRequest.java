@@ -9,6 +9,7 @@ import lombok.Setter;
 @Protocol(id = 3007)
 public class MenuCreateRequest {
 
+    private Long menuId;
     private Long parentId;
     private Integer menuType;
     private String name;

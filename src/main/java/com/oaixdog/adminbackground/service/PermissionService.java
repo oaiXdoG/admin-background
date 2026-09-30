@@ -3,6 +3,7 @@ package com.oaixdog.adminbackground.service;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.oaixdog.adminbackground.entity.Account;
 import com.oaixdog.adminbackground.entity.Menu;
+import com.oaixdog.adminbackground.entity.Project;
 import com.oaixdog.adminbackground.entity.ProjectUser;
 import com.oaixdog.adminbackground.entity.Role;
 import com.oaixdog.adminbackground.exception.BusinessException;
@@ -10,6 +11,7 @@ import com.oaixdog.adminbackground.exception.ErrorCode;
 import com.oaixdog.adminbackground.mapper.AccountMapper;
 import com.oaixdog.adminbackground.mapper.AccountRoleMapper;
 import com.oaixdog.adminbackground.mapper.MenuMapper;
+import com.oaixdog.adminbackground.mapper.ProjectMapper;
 import com.oaixdog.adminbackground.mapper.ProjectUserMapper;
 import com.oaixdog.adminbackground.mapper.RoleMapper;
 import com.oaixdog.adminbackground.mapper.RoleMenuMapper;
@@ -20,6 +22,7 @@ import org.springframework.stereotype.Service;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -35,6 +38,7 @@ public class PermissionService {
     private final RoleMapper roleMapper;
     private final RoleMenuMapper roleMenuMapper;
     private final MenuMapper menuMapper;
+    private final ProjectMapper projectMapper;
 
     public Account requireAccount(String authorization) {
         Long accountId = loginService.findAccountId(authorization);
@@ -48,8 +52,30 @@ public class PermissionService {
         return account;
     }
 
-    public List<MenuResponse> listMenus(String authorization) {
+    public Account requireProject(String authorization, Long projectId) {
+        if (projectId == null || projectId <= 0) throw new BusinessException(ErrorCode.INVALID_REQUEST);
+        return requireCurrentProject(authorization, projectId);
+    }
+
+    private Account requireCurrentProject(String authorization, Long projectId) {
         Account account = requireAccount(authorization);
+        if (!Objects.equals(projectId, account.getLastProjectId())) {
+            throw new BusinessException(ErrorCode.PROJECT_CONTEXT_MISMATCH);
+        }
+        if (projectId == null) return account;
+        Project project = projectMapper.selectById(projectId);
+        if (project == null || Boolean.TRUE.equals(project.getClosed())) {
+            throw new BusinessException(ErrorCode.PROJECT_SWITCH_FORBIDDEN);
+        }
+        if (!hasGlobalRole(account) && projectUserMapper.selectCount(Wrappers.<ProjectUser>lambdaQuery()
+                .eq(ProjectUser::getAccountId, account.getId()).eq(ProjectUser::getProjectId, projectId)) == 0) {
+            throw new BusinessException(ErrorCode.PROJECT_SWITCH_FORBIDDEN);
+        }
+        return account;
+    }
+
+    public List<MenuResponse> listMenus(String authorization, Long projectId) {
+        Account account = requireCurrentProject(authorization, projectId);
         List<Long> roleIds = roleIds(account);
         if (roleIds.isEmpty()) {
             return List.of();
@@ -69,6 +95,16 @@ public class PermissionService {
 
     public void requireMenu(String authorization, String routeName) {
         Account account = requireAccount(authorization);
+        requireMenu(account, routeName);
+    }
+
+    public Account requireProjectMenu(String authorization, Long projectId, String routeName) {
+        Account account = requireProject(authorization, projectId);
+        requireMenu(account, routeName);
+        return account;
+    }
+
+    private void requireMenu(Account account, String routeName) {
         List<Long> roleIds = roleIds(account);
         if (roleIds.isEmpty()) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);

@@ -12,7 +12,7 @@ import lombok.Setter;
 @TableName("menu")
 public class Menu {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.INPUT)
     private Long id;
     private Long parentId;
     private Integer menuType;

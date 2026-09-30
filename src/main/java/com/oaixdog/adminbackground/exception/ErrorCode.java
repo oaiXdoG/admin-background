@@ -90,7 +90,9 @@ public enum ErrorCode {
     ROLE_MENU_INVALID(100022, "角色菜单分配不合法"),
     ROLE_CODE_EXISTS(100023, "角色编码已存在"),
     PROJECT_APP_KEY_EXISTS(100024, "App Key 已存在"),
-    PROJECT_NOT_FOUND(100025, "项目不存在或已关闭");
+    PROJECT_NOT_FOUND(100025, "项目不存在或已关闭"),
+    MENU_ID_EXISTS(100026, "菜单 ID 已存在"),
+    PROJECT_CONTEXT_MISMATCH(100027, "请求项目与当前项目不一致，请切换到正确项目后重试");
 
     private final int code;
     private final String message;
