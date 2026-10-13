@@ -64,6 +64,7 @@ public class MenuService {
         fill(menu, request.getParentId(), request.getMenuType(), request.getName(), request.getIcon(),
                 request.getRouteName(), request.getRoutePath(), request.getStatus(), request.getHidden(), request.getSort());
         requireValidParent(menuId, menu.getParentId());
+        requireUniqueRouteName(menuId, menu.getRouteName());
         try {
             menuMapper.insert(menu);
         } catch (DuplicateKeyException exception) {
@@ -88,6 +89,7 @@ public class MenuService {
         fill(menu, request.getParentId(), request.getMenuType(), request.getName(), request.getIcon(),
                 request.getRouteName(), request.getRoutePath(), request.getStatus(), request.getHidden(), request.getSort());
         requireValidParent(menu.getId(), menu.getParentId());
+        requireUniqueRouteName(menu.getId(), menu.getRouteName());
         if (menu.getMenuType() == MENU && childCount(menu.getId()) > 0) {
             throw new BusinessException(ErrorCode.MENU_TYPE_CHANGE_FORBIDDEN);
         }
@@ -136,6 +138,7 @@ public class MenuService {
         String menuRouteName = routeName == null ? "" : routeName.trim();
         String menuRoutePath = routePath == null ? "" : routePath.trim();
         if (StringUtils.isBlank(menuName) || menuName.length() > NAME_MAX_LENGTH
+                || (menuType == MENU && StringUtils.isBlank(menuRouteName))
                 || menuIcon.length() > ICON_MAX_LENGTH
                 || menuRouteName.length() > ROUTE_NAME_MAX_LENGTH
                 || menuRoutePath.length() > ROUTE_PATH_MAX_LENGTH) {
@@ -176,7 +179,17 @@ public class MenuService {
         }
     }
 
-    private long childCount(Long menuId) {
+    private void requireUniqueRouteName(Long menuId, String routeName) {
+        if (StringUtils.isBlank(routeName)) {
+            return;
+        }
+        Long count = menuMapper.selectCount(Wrappers.<Menu>lambdaQuery().eq(Menu::getRouteName, routeName).ne(Menu::getId, menuId));
+        if (count != null && count > 0) {
+            throw new BusinessException(ErrorCode.MENU_ROUTE_NAME_EXISTS);
+        }
+    }
+
+        private long childCount(Long menuId) {
         Long count = menuMapper.selectCount(Wrappers.<Menu>lambdaQuery().eq(Menu::getParentId, menuId));
         return count == null ? 0 : count;
     }

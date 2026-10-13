@@ -12,6 +12,8 @@
 | 接口 | 权限菜单 |
 | --- | --- |
 | `/api/account/create` | `manage_user` |
+| `/api/account/list`、`/api/account/update` | `manage_user` |
+| `/api/account/project/*` | `manage_user` |
 | `/api/project/create` | `manage_project` |
 | `/api/menu/*` | `manage_menu` |
 | `/api/role/*` | `manage_role` |

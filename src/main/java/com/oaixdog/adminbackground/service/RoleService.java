@@ -21,7 +21,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -131,7 +134,14 @@ public class RoleService {
         if (Boolean.TRUE.equals(role.getBuiltIn())) {
             throw new BusinessException(ErrorCode.BUILT_IN_ROLE_FORBIDDEN);
         }
-        if (menuIds == null || menuIds.stream().anyMatch(id -> id == null || menuMapper.selectById(id) == null)) {
+        if (menuIds == null || menuIds.stream().anyMatch(Objects::isNull)) {
+            throw new BusinessException(ErrorCode.ROLE_MENU_INVALID);
+        }
+        Set<Long> assigned = new HashSet<>(menuIds);
+        List<Menu> menus = assigned.isEmpty() ? List.of() : menuMapper.selectBatchIds(assigned);
+        // 菜单必须存在，并且上级目录要一起分配，否则侧栏无法从目录生成这些菜单
+        if (menus.size() != assigned.size()
+                || menus.stream().anyMatch(menu -> menu.getParentId() != null && !assigned.contains(menu.getParentId()))) {
             throw new BusinessException(ErrorCode.ROLE_MENU_INVALID);
         }
         roleMenuMapper.delete(Wrappers.<RoleMenu>lambdaQuery().eq(RoleMenu::getRoleId, roleId));

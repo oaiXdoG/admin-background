@@ -92,7 +92,10 @@ public enum ErrorCode {
     PROJECT_APP_KEY_EXISTS(100024, "App Key 已存在"),
     PROJECT_NOT_FOUND(100025, "项目不存在或已关闭"),
     MENU_ID_EXISTS(100026, "菜单 ID 已存在"),
-    PROJECT_CONTEXT_MISMATCH(100027, "请求项目与当前项目不一致，请切换到正确项目后重试");
+    PROJECT_CONTEXT_MISMATCH(100027, "请求项目与当前项目不一致，请切换到正确项目后重试"),
+    ACCOUNT_NOT_FOUND(100028, "账号不存在"),
+    ACCOUNT_PROJECT_INVALID(100029, "项目关联不合法"),
+    MENU_ROUTE_NAME_EXISTS(100030, "路由名称已被其他菜单使用");
 
     private final int code;
     private final String message;
