@@ -6,6 +6,8 @@ create table account (
     account varchar(64) not null,
     password_hash varchar(100) not null,
     username varchar(64) not null,
+    -- 头像为图片 data URL（base64），前端压缩后上传，最长约 200KB
+    avatar text not null default '',
     status smallint not null default 1,
     remark varchar(128) not null default '',
     last_login_at bigint null,
@@ -99,6 +101,13 @@ create table role_menu (
     constraint fk_role_menu_menu foreign key (menu_id) references menu (id)
 );
 
+-- 系统设置：全局品牌信息（系统名称、Logo 等），键值存储，不登录也可以读取
+create table system_setting (
+    key varchar(64) primary key,
+    value text not null,
+    updated_at bigint not null
+);
+
 -- 菜单 ID 按顶级目录分段：顶级为 10000 的整数倍，子孙菜单在段内自增，之后新增的菜单由服务器生成 ID。
 insert into menu (id, parent_id, menu_type, scope, name, icon, route_name, route_path, status, built_in, sort_order, created_at, updated_at) values
     (10000, null, 1, 1, '系统管理', '', 'manage', '/manage', 1, false, 100, 0, 0),
@@ -107,6 +116,7 @@ insert into menu (id, parent_id, menu_type, scope, name, icon, route_name, route
     (10003, 10000, 2, 1, '角色管理', '', 'manage_role', '/manage/role', 1, false, 3, 0, 0),
     (10004, 10000, 2, 1, '角色模板', '', 'manage_role_template', '/manage/role-template', 1, false, 4, 0, 0),
     (10005, 10000, 2, 1, '菜单管理', '', 'manage_menu', '/manage/menu', 1, false, 5, 0, 0),
+    (10006, 10000, 2, 1, '系统设置', '', 'manage_setting', '/manage/setting', 1, false, 6, 0, 0),
     (20000, null, 1, 2, '项目设置', '', 'project', '/project', 1, false, 90, 0, 0),
     (20001, 20000, 2, 2, '成员管理', '', 'project_member', '/project/member', 1, false, 1, 0, 0),
     (20002, 20000, 2, 2, '角色管理', '', 'project_role', '/project/role', 1, false, 2, 0, 0),

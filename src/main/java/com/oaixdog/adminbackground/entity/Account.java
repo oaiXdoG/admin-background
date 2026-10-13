@@ -16,6 +16,7 @@ public class Account {
     private String account;
     private String passwordHash;
     private String username;
+    private String avatar;
     private Integer status;
     private String remark;
     private Long lastLoginAt;

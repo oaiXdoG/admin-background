@@ -2,7 +2,7 @@
 
 ## 步骤
 
-1. 在空数据库上手工执行 `src/main/resources/db/schema.sql`：建表，并写入内置菜单（系统管理、项目设置、数据中心、服务器管理）。
+1. 在空数据库上手工执行 `src/main/resources/db/schema.sql`：建表，并写入内置菜单（系统管理、项目设置、数据中心、服务器管理）。系统设置表为空，系统名称默认为 `admin-front`，可在「系统管理 → 系统设置」修改。
 2. 启动服务。`SystemInitializationService` 在启动时：
    - 确保内置平台角色「超级管理员」（`SUPER_ADMIN`）存在，并关联全部平台菜单；
    - 系统里一个账号都没有时，创建初始超级管理员账号。

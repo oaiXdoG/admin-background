@@ -50,6 +50,11 @@
         <protocol location="com.oaixdog.adminbackground.protocol.AccountRoleUpdateRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.AccountProjectRolesRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.AccountProjectOptionsRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ProfileGetRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ProfileUpdateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ProfilePasswordRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.SystemSettingGetRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.SystemSettingUpdateRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.ProjectRoleTemplatesRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.ProjectTemplateOptionsRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.AccountRoleOptionsRequest"/>

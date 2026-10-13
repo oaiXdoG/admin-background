@@ -30,6 +30,8 @@
 | `/api/role/*` | 平台 `manage_role` |
 | `/api/role-template/*` | 平台 `manage_role_template` |
 | `/api/menu/*` | 平台 `manage_menu` |
+| `/api/system/setting/update` | 平台 `manage_setting` |
 | `/api/project/member/*` | 项目 `project_member` |
 | `/api/project/role/*` | 项目 `project_role` |
-| `/api/login`、`/api/logout`、`/api/project/list`、`/api/project/switch`、`/api/access/menu` | 登录即可 |
+| `/api/login`、`/api/logout`、`/api/project/list`、`/api/project/switch`、`/api/access/menu`、`/api/profile/*` | 登录即可 |
+| `/api/system/setting/get` | 不需要登录 |

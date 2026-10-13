@@ -73,6 +73,20 @@ public class LoginService {
         redisService.delete(key);
     }
 
+    /** 让账号除当前会话以外的会话失效，用于本人修改密码 */
+    public void invalidateOtherSessions(long accountId, String authorization) {
+        String current = token(authorization);
+        String key = ACCOUNT_TOKENS_KEY_PREFIX + accountId;
+        for (String token : redisService.members(key)) {
+            if (token.equals(current)) {
+                continue;
+            }
+            redisService.delete(TOKEN_KEY_PREFIX + token);
+            redisService.delete(PROJECT_KEY_PREFIX + token);
+            redisService.removeFromSet(key, token);
+        }
+    }
+
     public Long findAccountId(String authorization) {
         String token = token(authorization);
         if (token == null) {
