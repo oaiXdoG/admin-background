@@ -2,11 +2,12 @@ package com.oaixdog.adminbackground.controller;
 
 import com.oaixdog.adminbackground.exception.BusinessException;
 import com.oaixdog.adminbackground.exception.ErrorCode;
+import com.oaixdog.adminbackground.protocol.AccountRoleOptionsRequest;
 import com.oaixdog.adminbackground.protocol.ApiResponse;
 import com.oaixdog.adminbackground.protocol.RoleCreateRequest;
+import com.oaixdog.adminbackground.protocol.RoleListRequest;
 import com.oaixdog.adminbackground.protocol.RoleMenuListRequest;
 import com.oaixdog.adminbackground.protocol.RoleMenuUpdateRequest;
-import com.oaixdog.adminbackground.protocol.RoleListRequest;
 import com.oaixdog.adminbackground.protocol.RoleRemoveRequest;
 import com.oaixdog.adminbackground.protocol.RoleUpdateRequest;
 import com.oaixdog.adminbackground.service.RoleService;
@@ -27,38 +28,43 @@ public class RoleController {
 
     @PacketReceiver
     public void atRoleListRequest(Session session, RoleListRequest request, HttpAttachment attachment) {
-        handle(session, attachment, request, () -> roleService.list(auth(attachment)));
+        handle(session, attachment, request, () -> roleService.list(auth(attachment), RoleService.Scope.platform()));
     }
 
     @PacketReceiver
     public void atRoleCreateRequest(Session session, RoleCreateRequest request, HttpAttachment attachment) {
-        handle(session, attachment, request, () -> roleService.create(auth(attachment), request.getName(), request.getCode(), request.getDescription(), request.getStatus()));
+        handle(session, attachment, request, () -> roleService.create(auth(attachment), RoleService.Scope.platform(), request.getName(), request.getCode(), request.getDescription(), request.getStatus()));
     }
 
     @PacketReceiver
     public void atRoleUpdateRequest(Session session, RoleUpdateRequest request, HttpAttachment attachment) {
-        handle(session, attachment, request, () -> roleService.update(auth(attachment), request.getRoleId(), request.getName(), request.getCode(), request.getDescription(), request.getStatus()));
+        handle(session, attachment, request, () -> roleService.update(auth(attachment), RoleService.Scope.platform(), request.getRoleId(), request.getName(), request.getCode(), request.getDescription(), request.getStatus()));
     }
 
     @PacketReceiver
     public void atRoleRemoveRequest(Session session, RoleRemoveRequest request, HttpAttachment attachment) {
         handle(session, attachment, request, () -> {
-            roleService.remove(auth(attachment), request.getRoleId());
+            roleService.remove(auth(attachment), RoleService.Scope.platform(), request.getRoleId());
             return null;
         });
     }
 
     @PacketReceiver
     public void atRoleMenuListRequest(Session session, RoleMenuListRequest request, HttpAttachment attachment) {
-        handle(session, attachment, request, () -> roleService.listMenus(auth(attachment), request.getRoleId()));
+        handle(session, attachment, request, () -> roleService.listMenus(auth(attachment), RoleService.Scope.platform(), request.getRoleId()));
     }
 
     @PacketReceiver
     public void atRoleMenuUpdateRequest(Session session, RoleMenuUpdateRequest request, HttpAttachment attachment) {
         handle(session, attachment, request, () -> {
-            roleService.updateMenus(auth(attachment), request.getRoleId(), request.getMenuIds());
+            roleService.updateMenus(auth(attachment), RoleService.Scope.platform(), request.getRoleId(), request.getMenuIds());
             return null;
         });
+    }
+
+    @PacketReceiver
+    public void atAccountRoleOptionsRequest(Session session, AccountRoleOptionsRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> roleService.options(auth(attachment), RoleService.OptionSource.ACCOUNT_PLATFORM_ROLE, null));
     }
 
     private void handle(Session session, HttpAttachment attachment, Object request, Handler handler) {

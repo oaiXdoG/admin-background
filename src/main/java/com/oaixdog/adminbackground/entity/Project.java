@@ -15,6 +15,8 @@ public class Project {
     private Long id;
     private String appKey;
     private String name;
+    private String description;
+    private Integer status;
     private Long createdAt;
-    private Boolean closed;
+    private Long updatedAt;
 }

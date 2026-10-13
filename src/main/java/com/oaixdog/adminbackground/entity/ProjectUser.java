@@ -16,4 +16,5 @@ public class ProjectUser {
     private Long projectId;
     private Long accountId;
     private Long roleId;
+    private Long createdAt;
 }

@@ -14,7 +14,7 @@ public interface AccountProjectMapper {
             from project_user pu
             join project p on p.id = pu.project_id
             join role r on r.id = pu.role_id
-            where pu.account_id = #{accountId} and p.closed = false
+            where pu.account_id = #{accountId} and p.status = 1
             order by p.id
             """)
     List<AccountProjectRow> listByAccountId(@Param("accountId") long accountId);

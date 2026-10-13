@@ -23,7 +23,7 @@ public class ProjectListResponse {
     @Setter
     public static class ProjectItem {
 
-        private long projectId;
+        private Long projectId;
         private String appKey;
         private String name;
         private Long createdAt;

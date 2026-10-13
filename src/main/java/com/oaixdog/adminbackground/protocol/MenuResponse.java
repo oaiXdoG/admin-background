@@ -14,6 +14,7 @@ public class MenuResponse {
     private long id;
     private Long parentId;
     private int menuType;
+    private int scope;
     private String name;
     private String icon;
     private String routeName;
@@ -28,6 +29,7 @@ public class MenuResponse {
         response.id = menu.getId();
         response.parentId = menu.getParentId() == null ? 0L : menu.getParentId();
         response.menuType = menu.getMenuType();
+        response.scope = menu.getScope() == null ? 0 : menu.getScope();
         response.name = menu.getName();
         response.icon = menu.getIcon();
         response.routeName = menu.getRouteName();

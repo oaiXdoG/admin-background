@@ -1,37 +1,15 @@
 # 创建项目
 
-`POST /api/project/create`
-
-调用者必须拥有 `manage_project` 菜单权限。处理顺序：校验令牌和权限，校验 App Key 和项目名，校验 App Key 全局唯一，创建项目，写入当前账号的 `last_project_id`。项目不会自动创建或绑定项目角色。
-
-请求体：
+`POST /api/project/create`。需要平台菜单 `manage_project`。
 
 ```json
-{"appKey":"admin-app","name":"管理后台"}
+{"appKey":"admin-app","name":"管理后台","description":"","templateIds":[2,6]}
 ```
 
-`appKey` 手动填写、必填，去除首尾空格后最长 64 字符，区分大小写且全局唯一；`name` 必填，去除首尾空格后最长 64 字符。项目 ID 和创建时间由后端生成，不接受客户端指定。
+`appKey` 必填，去除首尾空白后最长 64，区分大小写且全局唯一；`name` 必填最长 64；`description` 可选最长 128；`templateIds` 为要复制的角色模板 ID，可为空数组或省略。
 
-成功响应示例：
+处理顺序：校验权限和字段，检查 App Key 唯一，创建项目（状态为正常），生成项目角色「项目管理员」（`PROJECT_ADMIN`，拥有全部启用的项目菜单），再按 `templateIds` 复制模板为项目角色（与已有角色同名或同编码的模板跳过）。创建者可以访问新项目时，会话当前项目切换到新项目。
 
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "projectId": 1,
-    "appKey": "admin-app",
-    "name": "管理后台",
-    "createdAt": 1790470800000,
-    "roleId": null,
-    "roleName": null,
-    "currentProjectId": 1
-  }
-}
-```
+成功 `data`：`projectId`、`appKey`、`name`、`description`、`createdAt`、`currentProjectId`。
 
-`createdAt` 是创建时生成的 Unix 毫秒时间戳。角色字段为 `null`。超级管理员通过账号级角色访问项目；普通账号需要后续通过项目成员关系绑定角色。
-
-新项目 `closed` 默认为 `false`，可在项目列表中展示。
-
-错误：`100001` 参数不合法，`100003` 未登录，`100016` 无权访问，`100024` App Key 已存在。
+错误：`100001` 参数不合法，`100003` 未登录，`100016` 无权访问，`100018` 模板不存在，`100024` App Key 已存在。

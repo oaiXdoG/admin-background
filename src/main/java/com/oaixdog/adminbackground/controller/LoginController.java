@@ -5,11 +5,13 @@ import com.oaixdog.adminbackground.exception.ErrorCode;
 import com.oaixdog.adminbackground.protocol.ApiResponse;
 import com.oaixdog.adminbackground.protocol.LoginRequest;
 import com.oaixdog.adminbackground.protocol.LoginResponse;
+import com.oaixdog.adminbackground.protocol.LogoutRequest;
 import com.oaixdog.adminbackground.service.LoginService;
 import com.zfoo.net.NetContext;
 import com.zfoo.net.anno.PacketReceiver;
 import com.zfoo.net.router.attachment.HttpAttachment;
 import com.zfoo.net.session.Session;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -39,5 +41,13 @@ public class LoginController {
             attachment.setHttpResponseStatus(HttpResponseStatus.OK);
             NetContext.getRouter().send(session, ApiResponse.businessError(exception.getCode(), exception.getMessage()), attachment);
         }
+    }
+
+    /** 退出登录：删除当前会话，令牌失效与否都返回成功 */
+    @PacketReceiver
+    public void atLogoutRequest(Session session, LogoutRequest request, HttpAttachment attachment) {
+        loginService.logout(attachment.getFullHttpRequest().headers().get(HttpHeaderNames.AUTHORIZATION));
+        attachment.setHttpResponseStatus(HttpResponseStatus.OK);
+        NetContext.getRouter().send(session, ApiResponse.success(null), attachment);
     }
 }

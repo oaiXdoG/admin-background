@@ -12,6 +12,7 @@ public class MenuUpdateRequest {
     private Long menuId;
     private Long parentId;
     private Integer menuType;
+    private Integer scope;
     private String name;
     private String icon;
     private String routeName;

@@ -12,4 +12,5 @@ public class ProjectUpdateRequest {
     private Long projectId;
     private String appKey;
     private String name;
+    private String description;
 }

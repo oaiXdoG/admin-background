@@ -14,8 +14,12 @@ public class Account {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String account;
-    private String password;
+    private String passwordHash;
     private String username;
-    private Boolean admin;
+    private Integer status;
+    private String remark;
+    private Long lastLoginAt;
     private Long lastProjectId;
+    private Long createdAt;
+    private Long updatedAt;
 }

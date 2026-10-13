@@ -5,6 +5,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -62,5 +63,19 @@ public class RedisService {
     public long decrement(String key, long delta) {
         Long value = redisTemplate.opsForValue().decrement(key, delta);
         return value == null ? 0 : value;
+    }
+
+    public void addToSet(String key, String value, Duration timeout) {
+        redisTemplate.opsForSet().add(key, value);
+        redisTemplate.expire(key, timeout);
+    }
+
+    public Set<String> members(String key) {
+        Set<String> members = redisTemplate.opsForSet().members(key);
+        return members == null ? Set.of() : members;
+    }
+
+    public void removeFromSet(String key, String value) {
+        redisTemplate.opsForSet().remove(key, value);
     }
 }

@@ -1,63 +1,37 @@
-# 角色与菜单权限
+# 平台角色
 
-角色初始化只创建一个内置全局角色：`超级管理员`。其他角色通过角色接口创建，默认是项目角色。角色菜单关系保存在 `role_menu`。角色字段固定为名称、编码、描述、状态。
+需要平台菜单 `manage_role`。平台角色（`role_type=1`）不属于任何项目，通过 `account_role` 分配给账号，只能分配平台菜单（`scope=1`）。内置「超级管理员」不能修改、删除。
 
-所有接口需要 `manage_role` 菜单权限，并使用 `POST` 和 JSON 请求体。
+角色模板见 `role-template.md`，项目角色见 `project-role.md`。三类角色的接口字段与规则相同，只是权限菜单、所属项目和可分配菜单范围不同。
 
-## 角色列表
+## 接口
 
-`POST /api/role/list`，请求体 `{}`。
+| 接口 | 请求体 | 说明 |
+| --- | --- | --- |
+| `/api/role/list` | `{}` | 返回平台角色列表 |
+| `/api/role/create` | `{"name","code","description","status"}` | 返回新角色 |
+| `/api/role/update` | `{"roleId","name","code","description","status"}` | 返回修改后的角色 |
+| `/api/role/remove` | `{"roleId"}` | 角色仍被账号或项目成员使用时拒绝 |
+| `/api/role/menu/list` | `{"roleId"}` | 返回可分配范围内的全部菜单 `menus` 和已分配的 `menuIds` |
+| `/api/role/menu/update` | `{"roleId","menuIds"}` | 整体替换角色菜单 |
 
-处理顺序：校验调用者菜单权限，读取全部角色，返回 `id`、`name`、`globalRole`、`builtIn`。
+## 字段规则
 
-## 创建角色
+- `name` 必填最长 32，`code` 只允许大写字母、数字和下划线并以字母开头，最长 64；二者在同一类型、同一项目内唯一。
+- `description` 最长 128，`status` 为 1 启用或 2 停用。
+- 分配菜单：菜单必须存在、在可分配范围内，并且每个子菜单的上级目录也在提交列表中，否则返回 `100022`。
 
-`POST /api/role/create`
+角色返回字段：`id`、`roleType`、`projectId`、`templateId`、`templateName`、`name`、`code`、`description`、`status`、`builtIn`、`createdAt`。为空的字段省略。
 
-```json
-{"name":"开发","code":"DEVELOPER","description":"开发人员","status":1}
-```
+错误：`100001` 参数不合法，`100003` 未登录，`100016` 无权访问，`100018` 角色不存在，`100019` 角色名称已存在，`100020` 内置角色不能修改或删除，`100021` 角色正在使用，`100022` 菜单分配不合法，`100023` 角色编码已存在。
 
-新角色固定写入 `globalRole=false`、`builtIn=false`，初始没有菜单权限。
+## 下拉选项
 
-## 修改角色
+只返回启用的角色，各自只校验所在页面的权限：
 
-`POST /api/role/update`
-
-```json
-{"roleId":2,"name":"开发","code":"DEVELOPER","description":"开发人员","status":1}
-```
-
-内置超级管理员角色不能修改。
-
-## 删除角色
-
-`POST /api/role/remove`
-
-```json
-{"roleId":2}
-```
-
-角色未被项目成员或账号角色使用时才允许删除。内置角色不能删除。
-
-## 查询角色菜单
-
-`POST /api/role/menu/list`
-
-```json
-{"roleId":2}
-```
-
-返回全量菜单和当前角色的 `menuIds`，客户端据此渲染权限选择器。
-
-## 保存角色菜单
-
-`POST /api/role/menu/update`
-
-```json
-{"roleId":2,"menuIds":[2,5]}
-```
-
-校验角色和菜单存在，并且每个子菜单的上级目录也在提交列表中，然后删除该角色原有关联，再写入去重后的新关联。只分配子菜单而缺少上级目录时返回 `100022`。超级管理员角色不可修改。新建菜单由服务器自动关联超级管理员，不需要客户端提交。
-
-错误码：`100016` 无权访问，`100018` 角色不存在，`100019` 角色名称已存在，`100020` 内置角色不可修改，`100021` 角色正在使用，`100022` 菜单分配不合法，`100023` 角色编码已存在。
+| 接口 | 请求体 | 权限 | 返回 |
+| --- | --- | --- | --- |
+| `/api/account/role/options` | `{}` | 平台 `manage_user` | 平台角色，用于给账号分配平台角色 |
+| `/api/project/templates` | `{}` | 平台 `manage_project` | 角色模板，用于新建项目时勾选 |
+| `/api/project/role/templates` | `{"projectId"}` | 项目 `project_role` | 角色模板，用于从模板导入 |
+| `/api/project/member/roles` | `{"projectId"}` | 项目 `project_member` | 本项目角色，用于成员管理 |

@@ -1,10 +1,10 @@
 package com.oaixdog.adminbackground.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.oaixdog.adminbackground.entity.Account;
 import com.oaixdog.adminbackground.entity.Menu;
 import com.oaixdog.adminbackground.entity.Role;
 import com.oaixdog.adminbackground.entity.RoleMenu;
+import com.oaixdog.adminbackground.entity.Status;
 import com.oaixdog.adminbackground.exception.BusinessException;
 import com.oaixdog.adminbackground.exception.ErrorCode;
 import com.oaixdog.adminbackground.mapper.MenuMapper;
@@ -15,21 +15,24 @@ import com.oaixdog.adminbackground.protocol.MenuResponse;
 import com.oaixdog.adminbackground.protocol.MenuUpdateRequest;
 import com.zfoo.protocol.util.StringUtils;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
+/**
+ * 菜单范围只在顶级目录选择，子项跟随上级。平台菜单只能分配给平台角色，项目菜单只能分配给模板和项目角色。
+ */
 @Service
 @RequiredArgsConstructor
 public class MenuService {
 
+    private static final String MENU = "manage_menu";
     private static final int DIRECTORY = 1;
-    private static final int MENU = 2;
-    private static final int ENABLED = 1;
-    private static final int DISABLED = 2;
+    private static final int MENU_ITEM = 2;
     private static final int NAME_MAX_LENGTH = 64;
     private static final int ICON_MAX_LENGTH = 64;
     private static final int ROUTE_NAME_MAX_LENGTH = 64;
@@ -41,7 +44,7 @@ public class MenuService {
     private final RoleMenuMapper roleMenuMapper;
 
     public List<MenuResponse> list(String authorization) {
-        permissionService.requireMenu(authorization, "manage_menu");
+        permissionService.requirePlatformMenu(authorization, MENU);
         List<Menu> menus = menuMapper.selectList(Wrappers.<Menu>lambdaQuery());
         menus.sort(Comparator.comparing((Menu menu) -> menu.getParentId() == null ? 0L : menu.getParentId())
                 .thenComparing(menu -> menu.getSort() == null ? 0 : menu.getSort())
@@ -51,7 +54,7 @@ public class MenuService {
 
     @Transactional
     public MenuResponse create(String authorization, MenuCreateRequest request) {
-        permissionService.requireMenu(authorization, "manage_menu");
+        permissionService.requirePlatformMenu(authorization, MENU);
         Long menuId = request.getMenuId();
         if (menuId == null || menuId <= 0 || menuId > 9007199254740991L) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
@@ -61,21 +64,27 @@ public class MenuService {
         }
         Menu menu = new Menu();
         menu.setId(menuId);
-        fill(menu, request.getParentId(), request.getMenuType(), request.getName(), request.getIcon(),
+        fill(menu, request.getParentId(), request.getMenuType(), request.getScope(), request.getName(), request.getIcon(),
                 request.getRouteName(), request.getRoutePath(), request.getStatus(), request.getHidden(), request.getSort());
         requireValidParent(menuId, menu.getParentId());
         requireUniqueRouteName(menuId, menu.getRouteName());
+        long now = System.currentTimeMillis();
+        menu.setCreatedAt(now);
+        menu.setUpdatedAt(now);
         try {
             menuMapper.insert(menu);
         } catch (DuplicateKeyException exception) {
             throw new BusinessException(ErrorCode.MENU_ID_EXISTS);
         }
-        assignToSuperAdmin(menu.getId());
+        if (menu.getScope() == Menu.SCOPE_PLATFORM) {
+            assignToSuperAdmin(menu.getId());
+        }
         return MenuResponse.valueOf(menu);
     }
 
+    @Transactional
     public MenuResponse update(String authorization, MenuUpdateRequest request) {
-        permissionService.requireMenu(authorization, "manage_menu");
+        permissionService.requirePlatformMenu(authorization, MENU);
         if (request.getMenuId() == null) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
         }
@@ -86,30 +95,45 @@ public class MenuService {
         if (Boolean.TRUE.equals(menu.getBuiltIn())) {
             throw new BusinessException(ErrorCode.BUILT_IN_MENU_FORBIDDEN);
         }
-        fill(menu, request.getParentId(), request.getMenuType(), request.getName(), request.getIcon(),
+        int previousScope = menu.getScope();
+        fill(menu, request.getParentId(), request.getMenuType(), request.getScope(), request.getName(), request.getIcon(),
                 request.getRouteName(), request.getRoutePath(), request.getStatus(), request.getHidden(), request.getSort());
         requireValidParent(menu.getId(), menu.getParentId());
         requireUniqueRouteName(menu.getId(), menu.getRouteName());
-        if (menu.getMenuType() == MENU && childCount(menu.getId()) > 0) {
+        long children = childCount(menu.getId());
+        if (menu.getMenuType() == MENU_ITEM && children > 0) {
             throw new BusinessException(ErrorCode.MENU_TYPE_CHANGE_FORBIDDEN);
+        }
+        boolean scopeChanged = menu.getScope() != previousScope;
+        if (scopeChanged && children > 0) {
+            throw new BusinessException(ErrorCode.MENU_SCOPE_CHANGE_FORBIDDEN);
         }
         menuMapper.update(null, Wrappers.<Menu>lambdaUpdate()
                 .eq(Menu::getId, menu.getId())
                 .set(Menu::getParentId, menu.getParentId())
                 .set(Menu::getMenuType, menu.getMenuType())
+                .set(Menu::getScope, menu.getScope())
                 .set(Menu::getName, menu.getName())
                 .set(Menu::getIcon, menu.getIcon())
                 .set(Menu::getRouteName, menu.getRouteName())
                 .set(Menu::getRoutePath, menu.getRoutePath())
                 .set(Menu::getStatus, menu.getStatus())
                 .set(Menu::getHidden, menu.getHidden())
-                .set(Menu::getSort, menu.getSort()));
+                .set(Menu::getSort, menu.getSort())
+                .set(Menu::getUpdatedAt, System.currentTimeMillis()));
+        if (scopeChanged) {
+            // 范围变了，原来分配给另一类角色的关联不再合法
+            roleMenuMapper.delete(Wrappers.<RoleMenu>lambdaQuery().eq(RoleMenu::getMenuId, menu.getId()));
+            if (menu.getScope() == Menu.SCOPE_PLATFORM) {
+                assignToSuperAdmin(menu.getId());
+            }
+        }
         return MenuResponse.valueOf(menu);
     }
 
     @Transactional
     public void remove(String authorization, Long menuId) {
-        permissionService.requireMenu(authorization, "manage_menu");
+        permissionService.requirePlatformMenu(authorization, MENU);
         if (menuId == null) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
         }
@@ -127,10 +151,9 @@ public class MenuService {
         menuMapper.deleteById(menuId);
     }
 
-    private void fill(Menu menu, Long parentId, Integer menuType, String name, String icon, String routeName,
+    private void fill(Menu menu, Long parentId, Integer menuType, Integer scope, String name, String icon, String routeName,
                       String routePath, Integer status, Boolean hidden, Integer sort) {
-        if (menuType == null || (menuType != DIRECTORY && menuType != MENU)
-                || status == null || (status != ENABLED && status != DISABLED)) {
+        if (menuType == null || (menuType != DIRECTORY && menuType != MENU_ITEM) || !Status.valid(status)) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
         }
         String menuName = name == null ? "" : name.trim();
@@ -138,14 +161,25 @@ public class MenuService {
         String menuRouteName = routeName == null ? "" : routeName.trim();
         String menuRoutePath = routePath == null ? "" : routePath.trim();
         if (StringUtils.isBlank(menuName) || menuName.length() > NAME_MAX_LENGTH
-                || (menuType == MENU && StringUtils.isBlank(menuRouteName))
+                || (menuType == MENU_ITEM && StringUtils.isBlank(menuRouteName))
                 || menuIcon.length() > ICON_MAX_LENGTH
                 || menuRouteName.length() > ROUTE_NAME_MAX_LENGTH
                 || menuRoutePath.length() > ROUTE_PATH_MAX_LENGTH) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
         }
-        menu.setParentId(parentId == null || parentId == 0 ? null : parentId);
+        Long menuParentId = parentId == null || parentId == 0 ? null : parentId;
+        // 子项的范围跟随上级，只有顶级目录使用请求里的范围
+        Menu parent = menuParentId == null ? null : menuMapper.selectById(menuParentId);
+        if (menuParentId != null && parent == null) {
+            throw new BusinessException(ErrorCode.MENU_PARENT_INVALID);
+        }
+        Integer menuScope = parent != null ? parent.getScope() : scope;
+        if (menuScope == null || (menuScope != Menu.SCOPE_PLATFORM && menuScope != Menu.SCOPE_PROJECT)) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST);
+        }
+        menu.setParentId(menuParentId);
         menu.setMenuType(menuType);
+        menu.setScope(menuScope);
         menu.setName(menuName);
         menu.setIcon(menuIcon);
         menu.setRouteName(menuRouteName);
@@ -160,12 +194,12 @@ public class MenuService {
         if (parentId == null) {
             return;
         }
-        if (menuId != null && menuId.equals(parentId)) {
+        if (Objects.equals(menuId, parentId)) {
             throw new BusinessException(ErrorCode.MENU_PARENT_INVALID);
         }
         Long cursor = parentId;
         while (cursor != null) {
-            if (menuId != null && menuId.equals(cursor)) {
+            if (Objects.equals(menuId, cursor)) {
                 throw new BusinessException(ErrorCode.MENU_PARENT_INVALID);
             }
             Menu parent = menuMapper.selectById(cursor);
@@ -189,13 +223,14 @@ public class MenuService {
         }
     }
 
-        private long childCount(Long menuId) {
+    private long childCount(Long menuId) {
         Long count = menuMapper.selectCount(Wrappers.<Menu>lambdaQuery().eq(Menu::getParentId, menuId));
         return count == null ? 0 : count;
     }
 
     private void assignToSuperAdmin(Long menuId) {
-        Role role = roleMapper.selectOne(Wrappers.<Role>lambdaQuery().eq(Role::getName, "超级管理员"));
+        Role role = roleMapper.selectOne(Wrappers.<Role>lambdaQuery().eq(Role::getRoleType, Role.TYPE_PLATFORM)
+                .eq(Role::getCode, Role.SUPER_ADMIN_CODE));
         if (role == null) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }

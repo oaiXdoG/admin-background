@@ -3,8 +3,7 @@ package com.oaixdog.adminbackground.service;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.oaixdog.adminbackground.entity.Account;
 import com.oaixdog.adminbackground.entity.Project;
-import com.oaixdog.adminbackground.exception.BusinessException;
-import com.oaixdog.adminbackground.exception.ErrorCode;
+import com.oaixdog.adminbackground.entity.Status;
 import com.oaixdog.adminbackground.mapper.AccountMapper;
 import com.oaixdog.adminbackground.mapper.AccountProjectMapper;
 import com.oaixdog.adminbackground.mapper.ProjectMapper;
@@ -14,7 +13,12 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
+/**
+ * 项目切换器的数据：超级管理员看到全部正常项目，其他账号看到自己加入的正常项目。
+ * 当前项目依次取会话项目、上次使用的项目、列表第一个，并写回会话。
+ */
 @Service
 @RequiredArgsConstructor
 public class ProjectListService {
@@ -26,59 +30,38 @@ public class ProjectListService {
     private final PermissionService permissionService;
 
     public ProjectListResponse list(String authorization) {
-        Long accountId = loginService.findAccountId(authorization);
-        if (accountId == null) {
-            throw new BusinessException(ErrorCode.UNAUTHENTICATED);
-        }
-        Account account = accountMapper.selectById(accountId);
-        if (account == null) {
-            throw new BusinessException(ErrorCode.UNAUTHENTICATED);
-        }
+        Account account = permissionService.requireAccount(authorization);
         List<ProjectListResponse.ProjectItem> projects = new ArrayList<>();
-        Long currentProjectId = null;
-        if (permissionService.hasGlobalRole(account)) {
-            projectMapper.selectList(Wrappers.<Project>lambdaQuery().eq(Project::getClosed, false)).forEach(project -> {
-                ProjectListResponse.ProjectItem item = new ProjectListResponse.ProjectItem();
-                item.setProjectId(project.getId());
-                item.setAppKey(project.getAppKey());
-                item.setName(project.getName());
-                item.setCreatedAt(project.getCreatedAt());
-                item.setRoleName("超级管理员");
-                projects.add(item);
-            });
-            currentProjectId = projects.stream().map(ProjectListResponse.ProjectItem::getProjectId)
-                    .filter(id -> sameId(id, account.getLastProjectId())).findFirst().orElse(null);
+        if (permissionService.isSuperAdmin(account)) {
+            projectMapper.selectList(Wrappers.<Project>lambdaQuery().eq(Project::getStatus, Status.ENABLED).orderByAsc(Project::getId))
+                    .forEach(project -> projects.add(item(project.getId(), project.getAppKey(), project.getName(), project.getCreatedAt(), null, "超级管理员")));
         } else {
-            List<AccountProjectMapper.AccountProjectRow> rows = accountProjectMapper.listByAccountId(accountId);
-            for (AccountProjectMapper.AccountProjectRow row : rows) {
-                ProjectListResponse.ProjectItem item = new ProjectListResponse.ProjectItem();
-                item.setProjectId(row.getProjectId());
-                item.setAppKey(row.getAppKey());
-                item.setName(row.getName());
-                item.setCreatedAt(row.getCreatedAt());
-                item.setRoleId(row.getRoleId());
-                item.setRoleName(row.getRoleName());
-                projects.add(item);
-                if (row.getProjectId().equals(account.getLastProjectId())) {
-                    currentProjectId = row.getProjectId();
-                }
-            }
+            accountProjectMapper.listByAccountId(account.getId()).forEach(row ->
+                    projects.add(item(row.getProjectId(), row.getAppKey(), row.getName(), row.getCreatedAt(), row.getRoleId(), row.getRoleName())));
         }
-        if (currentProjectId == null && !projects.isEmpty()) {
-            currentProjectId = projects.get(0).getProjectId();
+        List<Long> projectIds = projects.stream().map(ProjectListResponse.ProjectItem::getProjectId).toList();
+        Long sessionProjectId = loginService.findSessionProjectId(authorization);
+        Long currentProjectId = projectIds.contains(sessionProjectId) ? sessionProjectId
+                : projectIds.contains(account.getLastProjectId()) ? account.getLastProjectId()
+                : projectIds.isEmpty() ? null : projectIds.get(0);
+        if (!Objects.equals(sessionProjectId, currentProjectId)) {
+            loginService.setSessionProjectId(authorization, currentProjectId);
         }
-        if (!sameId(account.getLastProjectId(), currentProjectId)) {
-            accountMapper.update(null, Wrappers.<Account>lambdaUpdate()
-                    .eq(Account::getId, accountId)
+        if (currentProjectId != null && !Objects.equals(account.getLastProjectId(), currentProjectId)) {
+            accountMapper.update(null, Wrappers.<Account>lambdaUpdate().eq(Account::getId, account.getId())
                     .set(Account::getLastProjectId, currentProjectId));
         }
         return ProjectListResponse.valueOf(currentProjectId, projects);
     }
 
-    private static boolean sameId(Long left, Long right) {
-        if (left == null) {
-            return right == null;
-        }
-        return left.equals(right);
+    private static ProjectListResponse.ProjectItem item(Long projectId, String appKey, String name, Long createdAt, Long roleId, String roleName) {
+        ProjectListResponse.ProjectItem item = new ProjectListResponse.ProjectItem();
+        item.setProjectId(projectId);
+        item.setAppKey(appKey);
+        item.setName(name);
+        item.setCreatedAt(createdAt);
+        item.setRoleId(roleId);
+        item.setRoleName(roleName);
+        return item;
     }
 }

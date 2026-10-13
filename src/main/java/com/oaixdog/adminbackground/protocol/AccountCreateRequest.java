@@ -12,4 +12,5 @@ public class AccountCreateRequest {
     private String account;
     private String password;
     private String username;
+    private String remark;
 }

@@ -11,6 +11,7 @@ public class ProjectCreateResponse {
     private long projectId;
     private String appKey;
     private String name;
+    private String description;
     private long createdAt;
     private Long roleId;
     private String roleName;
@@ -21,6 +22,7 @@ public class ProjectCreateResponse {
         response.projectId = project.getId();
         response.appKey = project.getAppKey();
         response.name = project.getName();
+        response.description = project.getDescription();
         response.createdAt = project.getCreatedAt();
         response.roleId = roleId;
         response.roleName = roleName;

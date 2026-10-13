@@ -22,7 +22,7 @@ Content-Type: application/json
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `account` | String | 是 | 登录名，对应账号表 `account`。去掉首尾空白后不能为空，最长 64 |
-| `password` | String | 是 | 密码，对应账号表 `password`。不能为空，最长 128 |
+| `password` | String | 是 | 密码，与账号表 `password_hash`（bcrypt）比对。不能为空，最长 128 |
 
 ## 成功
 
@@ -57,7 +57,8 @@ HTTP `200`。
 | code | message | 判断 |
 | --- | --- | --- |
 | 100001 | 请求参数不合法 | `account` 或 `password` 为空、超长，或请求体无法按登录请求读取 |
-| 100002 | 账号或密码错误 | 账号不存在，或密码与库中 `password` 不一致。不区分是哪一种 |
+| 100002 | 账号或密码错误 | 账号不存在，或密码与库中哈希不匹配。不区分是哪一种 |
+| 100031 | 账号已禁用 | 账号状态为禁用 |
 
 ```json
 {
@@ -86,3 +87,11 @@ Authorization: Bearer <token>
   "data": null
 }
 ```
+
+## 会话
+
+登录成功后，Redis 中写入 `login:token:<token>`（账号 ID）并把令牌加入 `login:account:<账号ID>` 集合，有效期 12 小时；同时记录 `last_login_at`。会话当前项目保存在 `login:project:<token>`，由项目列表和切换项目写入，每个会话独立。禁用账号、修改密码时该账号的全部会话失效。
+
+# 退出登录
+
+`POST /api/logout`，请求体 `{}`。删除当前会话；令牌已失效时同样返回成功，`data` 为 `null`。

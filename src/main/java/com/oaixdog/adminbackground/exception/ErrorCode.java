@@ -95,7 +95,13 @@ public enum ErrorCode {
     PROJECT_CONTEXT_MISMATCH(100027, "请求项目与当前项目不一致，请切换到正确项目后重试"),
     ACCOUNT_NOT_FOUND(100028, "账号不存在"),
     ACCOUNT_PROJECT_INVALID(100029, "项目关联不合法"),
-    MENU_ROUTE_NAME_EXISTS(100030, "路由名称已被其他菜单使用");
+    MENU_ROUTE_NAME_EXISTS(100030, "路由名称已被其他菜单使用"),
+    ACCOUNT_DISABLED(100031, "账号已禁用"),
+    MENU_SCOPE_CHANGE_FORBIDDEN(100032, "有子项的顶级目录不能修改范围"),
+    MEMBER_EXISTS(100033, "该账号已经是项目成员"),
+    MEMBER_NOT_FOUND(100034, "项目成员不存在"),
+    SELF_OPERATION_FORBIDDEN(100035, "不能对自己执行该操作"),
+    SUPER_ADMIN_REQUIRED(100036, "只有超级管理员可以分配超级管理员角色");
 
     private final int code;
     private final String message;
