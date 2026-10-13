@@ -37,6 +37,7 @@ public class MenuService {
     private static final int ICON_MAX_LENGTH = 64;
     private static final int ROUTE_NAME_MAX_LENGTH = 64;
     private static final int ROUTE_PATH_MAX_LENGTH = 128;
+    private static final long MENU_ID_BLOCK = 10000;
 
     private final PermissionService permissionService;
     private final MenuMapper menuMapper;
@@ -55,17 +56,11 @@ public class MenuService {
     @Transactional
     public MenuResponse create(String authorization, MenuCreateRequest request) {
         permissionService.requirePlatformMenu(authorization, MENU);
-        Long menuId = request.getMenuId();
-        if (menuId == null || menuId <= 0 || menuId > 9007199254740991L) {
-            throw new BusinessException(ErrorCode.INVALID_REQUEST);
-        }
-        if (menuMapper.selectById(menuId) != null) {
-            throw new BusinessException(ErrorCode.MENU_ID_EXISTS);
-        }
         Menu menu = new Menu();
-        menu.setId(menuId);
         fill(menu, request.getParentId(), request.getMenuType(), request.getScope(), request.getName(), request.getIcon(),
                 request.getRouteName(), request.getRoutePath(), request.getStatus(), request.getHidden(), request.getSort());
+        long menuId = nextMenuId(menu.getParentId());
+        menu.setId(menuId);
         requireValidParent(menuId, menu.getParentId());
         requireUniqueRouteName(menuId, menu.getRouteName());
         long now = System.currentTimeMillis();
@@ -188,6 +183,36 @@ public class MenuService {
         menu.setHidden(Boolean.TRUE.equals(hidden));
         menu.setBuiltIn(false);
         menu.setSort(sort == null ? 0 : sort);
+    }
+
+    /**
+     * 菜单 ID 按顶级目录分段：顶级依次为 10000、20000……；子孙菜单在所属顶级目录的段内自增，例如 10001、10002。
+     * 每段最多 9999 个子孙菜单。移动到其他顶级目录的菜单保留原 ID。
+     */
+    private long nextMenuId(Long parentId) {
+        if (parentId == null) {
+            long maxTop = menuMapper.selectList(Wrappers.<Menu>lambdaQuery().isNull(Menu::getParentId)).stream()
+                    .mapToLong(Menu::getId).max().orElse(0);
+            return (maxTop / MENU_ID_BLOCK + 1) * MENU_ID_BLOCK;
+        }
+        long block = topLevelId(parentId);
+        long maxInBlock = menuMapper.selectList(Wrappers.<Menu>lambdaQuery().ge(Menu::getId, block).lt(Menu::getId, block + MENU_ID_BLOCK))
+                .stream().mapToLong(Menu::getId).max().orElse(block);
+        if (maxInBlock + 1 >= block + MENU_ID_BLOCK) {
+            throw new BusinessException(ErrorCode.MENU_BLOCK_FULL);
+        }
+        return maxInBlock + 1;
+    }
+
+    /** 所属顶级目录 ID 向下取整到段起点，旧数据或移动过的菜单也能落在合法的段里 */
+    private long topLevelId(Long menuId) {
+        Long cursor = menuId;
+        Menu menu = menuMapper.selectById(cursor);
+        while (menu != null && menu.getParentId() != null) {
+            cursor = menu.getParentId();
+            menu = menuMapper.selectById(cursor);
+        }
+        return cursor / MENU_ID_BLOCK * MENU_ID_BLOCK;
     }
 
     private void requireValidParent(Long menuId, Long parentId) {

@@ -101,7 +101,8 @@ public enum ErrorCode {
     MEMBER_EXISTS(100033, "该账号已经是项目成员"),
     MEMBER_NOT_FOUND(100034, "项目成员不存在"),
     SELF_OPERATION_FORBIDDEN(100035, "不能对自己执行该操作"),
-    SUPER_ADMIN_REQUIRED(100036, "只有超级管理员可以分配超级管理员角色");
+    SUPER_ADMIN_REQUIRED(100036, "只有超级管理员可以分配超级管理员角色"),
+    MENU_BLOCK_FULL(100037, "该顶级目录下的菜单数量已达上限");
 
     private final int code;
     private final String message;

@@ -44,4 +44,11 @@ public class ApplicationProperties {
     @Value("${database.postgresql.hikari.connection-timeout}")
     private long postgresqlConnectionTimeout;
 
+    /** 系统里还没有任何账号时，启动时创建的初始超级管理员；密码为空则随机生成并打印到日志 */
+    @Value("${admin.init.account:admin}")
+    private String adminInitAccount;
+
+    @Value("${admin.init.password:}")
+    private String adminInitPassword;
+
 }

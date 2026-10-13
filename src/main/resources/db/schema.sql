@@ -1,4 +1,4 @@
--- 由开发者手工执行，启动时不自动执行。
+-- 由开发者手工执行，启动时不自动执行。执行后启动服务，服务会创建超级管理员角色和初始管理员账号。
 -- 状态：1 启用（项目为正常），2 停用（项目为已关闭）。时间均为毫秒时间戳。
 
 create table account (
@@ -99,20 +99,23 @@ create table role_menu (
     constraint fk_role_menu_menu foreign key (menu_id) references menu (id)
 );
 
+-- 菜单 ID 按顶级目录分段：顶级为 10000 的整数倍，子孙菜单在段内自增，之后新增的菜单由服务器生成 ID。
 insert into menu (id, parent_id, menu_type, scope, name, icon, route_name, route_path, status, built_in, sort_order, created_at, updated_at) values
-    (10, null, 1, 1, '系统管理', '', 'manage', '/manage', 1, false, 100, 0, 0),
-    (1, 10, 2, 1, '项目管理', '', 'manage_project', '/manage/project', 1, true, 1, 0, 0),
-    (11, 10, 2, 1, '用户管理', '', 'manage_user', '/manage/user', 1, false, 2, 0, 0),
-    (12, 10, 2, 1, '角色管理', '', 'manage_role', '/manage/role', 1, false, 3, 0, 0),
-    (15, 10, 2, 1, '角色模板', '', 'manage_role_template', '/manage/role-template', 1, false, 4, 0, 0),
-    (13, 10, 2, 1, '菜单管理', '', 'manage_menu', '/manage/menu', 1, false, 5, 0, 0),
-    (300, null, 1, 2, '项目设置', '', 'project', '/project', 1, false, 90, 0, 0),
-    (301, 300, 2, 2, '成员管理', '', 'project_member', '/project/member', 1, false, 1, 0, 0),
-    (302, 300, 2, 2, '角色管理', '', 'project_role', '/project/role', 1, false, 2, 0, 0);
+    (10000, null, 1, 1, '系统管理', '', 'manage', '/manage', 1, false, 100, 0, 0),
+    (10001, 10000, 2, 1, '项目管理', '', 'manage_project', '/manage/project', 1, true, 1, 0, 0),
+    (10002, 10000, 2, 1, '用户管理', '', 'manage_user', '/manage/user', 1, false, 2, 0, 0),
+    (10003, 10000, 2, 1, '角色管理', '', 'manage_role', '/manage/role', 1, false, 3, 0, 0),
+    (10004, 10000, 2, 1, '角色模板', '', 'manage_role_template', '/manage/role-template', 1, false, 4, 0, 0),
+    (10005, 10000, 2, 1, '菜单管理', '', 'manage_menu', '/manage/menu', 1, false, 5, 0, 0),
+    (20000, null, 1, 2, '项目设置', '', 'project', '/project', 1, false, 90, 0, 0),
+    (20001, 20000, 2, 2, '成员管理', '', 'project_member', '/project/member', 1, false, 1, 0, 0),
+    (20002, 20000, 2, 2, '角色管理', '', 'project_role', '/project/role', 1, false, 2, 0, 0),
+    (30000, null, 1, 2, '数据中心', '', 'data', '/data', 1, false, 1, 0, 0),
+    (30001, 30000, 2, 2, '数据查询', '', 'data_query', '/data/query', 1, false, 1, 0, 0),
+    (30002, 30000, 2, 2, '日志查询', '', 'data_log', '/data/log', 1, false, 2, 0, 0),
+    (30003, 30000, 2, 2, '查询模板管理', '', 'data_template', '/data/template', 1, false, 3, 0, 0),
+    (40000, null, 1, 2, '服务器管理', '', 'server', '/server', 1, false, 2, 0, 0),
+    (40001, 40000, 2, 2, '性能监控', '', 'server_monitor', '/server/monitor', 1, false, 1, 0, 0),
+    (40002, 40000, 2, 2, '运维操作', '', 'server_operations', '/server/operations', 1, false, 2, 0, 0);
 
-insert into role (role_type, name, code, description, status, built_in, created_at, updated_at) values
-    (1, '超级管理员', 'SUPER_ADMIN', '系统最高权限角色，可进入全部项目', 1, true, 0, 0);
-
--- 超级管理员只需要平台菜单；进入项目后自动拥有全部项目菜单。
-insert into role_menu (role_id, menu_id)
-select r.id, m.id from role r cross join menu m where r.code = 'SUPER_ADMIN' and r.role_type = 1 and m.scope = 1;
+-- 超级管理员角色、它的平台菜单关联和初始管理员账号由服务启动时创建，见 SystemInitializationService。

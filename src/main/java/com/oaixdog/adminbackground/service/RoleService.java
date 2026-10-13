@@ -258,11 +258,8 @@ public class RoleService {
 
     private void replaceMenus(Long roleId, Set<Long> menuIds) {
         roleMenuMapper.delete(Wrappers.<RoleMenu>lambdaQuery().eq(RoleMenu::getRoleId, roleId));
-        for (Long menuId : menuIds) {
-            RoleMenu roleMenu = new RoleMenu();
-            roleMenu.setRoleId(roleId);
-            roleMenu.setMenuId(menuId);
-            roleMenuMapper.insert(roleMenu);
+        if (!menuIds.isEmpty()) {
+            roleMenuMapper.insertBatch(roleId, menuIds);
         }
     }
 
