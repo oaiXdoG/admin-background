@@ -42,7 +42,6 @@ public class AccountCommandService {
 
     private static final String MENU = "manage_user";
     private static final int ACCOUNT_MAX_LENGTH = 64;
-    private static final int PASSWORD_MAX_LENGTH = 128;
     private static final int USERNAME_MAX_LENGTH = 64;
     private static final int REMARK_MAX_LENGTH = 128;
 
@@ -73,13 +72,16 @@ public class AccountCommandService {
     }
 
     public AccountCreateResponse create(String authorization, String account, String password, String username, String remark) {
-        permissionService.requirePlatformMenu(authorization, MENU);
+        permissionService.requirePlatformMenu(authorization, MENU + ":create");
         String loginAccount = account == null ? "" : account.trim();
         String displayName = username == null ? "" : username.trim();
         String accountRemark = remark == null ? "" : remark.trim();
-        if (StringUtils.isBlank(loginAccount) || loginAccount.length() > ACCOUNT_MAX_LENGTH || !validPassword(password)
+        if (StringUtils.isBlank(loginAccount) || loginAccount.length() > ACCOUNT_MAX_LENGTH
                 || StringUtils.isBlank(displayName) || displayName.length() > USERNAME_MAX_LENGTH || accountRemark.length() > REMARK_MAX_LENGTH) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
+        }
+        if (!PasswordPolicy.valid(password)) {
+            throw new BusinessException(ErrorCode.PASSWORD_TOO_WEAK);
         }
         if (accountMapper.selectCount(Wrappers.<Account>lambdaQuery().eq(Account::getAccount, loginAccount)) > 0) {
             throw new BusinessException(ErrorCode.ACCOUNT_EXISTS);
@@ -99,13 +101,15 @@ public class AccountCommandService {
 
     /** 修改显示名和备注；提交密码时重置密码，并让该账号已登录的会话失效 */
     public void update(String authorization, Long accountId, String username, String password, String remark) {
-        permissionService.requirePlatformMenu(authorization, MENU);
+        permissionService.requirePlatformMenu(authorization, MENU + ":update");
         requireAccount(accountId);
         String displayName = username == null ? "" : username.trim();
         String accountRemark = remark == null ? "" : remark.trim();
-        if (StringUtils.isBlank(displayName) || displayName.length() > USERNAME_MAX_LENGTH || accountRemark.length() > REMARK_MAX_LENGTH
-                || (password != null && !validPassword(password))) {
+        if (StringUtils.isBlank(displayName) || displayName.length() > USERNAME_MAX_LENGTH || accountRemark.length() > REMARK_MAX_LENGTH) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
+        }
+        if (password != null && !PasswordPolicy.valid(password)) {
+            throw new BusinessException(ErrorCode.PASSWORD_TOO_WEAK);
         }
         Account updated = new Account();
         updated.setId(accountId);
@@ -123,7 +127,7 @@ public class AccountCommandService {
 
     /** 启用或禁用账号；禁用后已登录的会话立即失效。不能修改自己的状态 */
     public void updateStatus(String authorization, Long accountId, Integer status) {
-        Account operator = permissionService.requirePlatformMenu(authorization, MENU);
+        Account operator = permissionService.requirePlatformMenu(authorization, MENU + ":status");
         requireAccount(accountId);
         if (!Status.valid(status)) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
@@ -143,7 +147,7 @@ public class AccountCommandService {
      */
     @Transactional
     public void updateRoles(String authorization, Long accountId, List<Long> roleIds) {
-        Account operator = permissionService.requirePlatformMenu(authorization, MENU);
+        Account operator = permissionService.requirePlatformMenu(authorization, MENU + ":role");
         requireAccount(accountId);
         if (roleIds == null || roleIds.stream().anyMatch(Objects::isNull)) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
@@ -204,7 +208,7 @@ public class AccountCommandService {
 
     @Transactional
     public void updateProjects(String authorization, Long accountId, List<AccountMembership> memberships) {
-        permissionService.requirePlatformMenu(authorization, MENU);
+        permissionService.requirePlatformMenu(authorization, MENU + ":project");
         requireAccount(accountId);
         if (memberships == null) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
@@ -241,9 +245,6 @@ public class AccountCommandService {
         }
     }
 
-    private boolean validPassword(String password) {
-        return StringUtils.isNotBlank(password) && password.length() <= PASSWORD_MAX_LENGTH;
-    }
 
     private void requireAccount(Long accountId) {
         if (accountId == null || accountId <= 0) {

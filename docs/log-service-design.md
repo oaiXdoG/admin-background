@@ -1,6 +1,6 @@
 # 日志系统设计
 
-状态：待确认（第三版）。
+状态：已确认（第三版）。第 1～4 步已实施，数据中心接口见 `data-center.md`。第 5 步改为：admin 自己的操作日志不走 log-sdk，存 PostgreSQL 表 `operation_log`（见 `data-center.md` 第四节）。
 
 ## 一、目标与约束
 
@@ -154,7 +154,7 @@ TTL toDateTime(time) + INTERVAL 90 DAY DELETE WHERE retention = 'normal';
 - **查询**：属于项目接口，走 `requireProjectMenu`，自动加上当前项目 App Key 的过滤，请求里不能指定其他项目；必须带时间范围；条件按字段类型生成参数化 SQL；分页，并限制最大返回条数和查询超时。
 - **保留期**：在系统设置里修改普通日志的保留天数。
 - **App Key 只读**：项目创建后 App Key 不可修改，前端编辑时只读，后端拒绝修改。
-- **操作日志**：admin 自己也通过 log-sdk 上报操作日志，不单独建表。
+- **操作日志**：（已调整）admin 自己的操作日志存 PostgreSQL 表 `operation_log`，不走 log-sdk。日志存储配置只用于读取外部业务服务的日志。
 
 ## 九、实施顺序
 
@@ -162,4 +162,4 @@ TTL toDateTime(time) + INTERVAL 90 DAY DELETE WHERE retention = 'normal';
 2. 新建 `log-sdk` 仓库：SDK 代码和单元测试；本机装 Vector，跑通「SDK 写文件 → Vector → ClickHouse」。
 3. admin-background：ClickHouse 连接配置、事件定义、查询模板、日志查询、保留期，App Key 改为只读。
 4. admin-front：系统设置增加日志存储配置，数据中心接入真实接口。
-5. admin-background 接入 log-sdk，记录操作日志。
+5. （已调整）admin-background 的操作日志存 PostgreSQL，不接入 log-sdk。

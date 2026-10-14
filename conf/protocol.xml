@@ -70,6 +70,22 @@
         <protocol location="com.oaixdog.adminbackground.protocol.RoleRemoveRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.RoleMenuListRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.RoleMenuUpdateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.LogStorageGetRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.LogStorageUpdateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.LogStorageTestRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.LogStorageRetentionRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.QueryTemplateListRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.QueryTemplateCreateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.QueryTemplateUpdateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.QueryTemplateRemoveRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.DataQueryRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.DataQueryCondition"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.OperationLogListRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.BackupGetRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.BackupUpdateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.BackupRunRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.BackupDownloadRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.BackupRemoveRequest"/>
     </module>
 
 </protocols>

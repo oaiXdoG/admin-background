@@ -16,6 +16,7 @@ import java.util.UUID;
 
 /**
  * 登录会话：令牌对应账号，会话里保存当前项目；同一账号的令牌集中记录，禁用或改密码时一起失效。
+ * 会话 12 小时没有操作才失效（每次请求续期）。同一账号最近 15 分钟失败 5 次、同一 IP 失败 20 次后暂停登录。
  */
 @Service
 @RequiredArgsConstructor
@@ -25,20 +26,34 @@ public class LoginService {
     private static final String TOKEN_KEY_PREFIX = "login:token:";
     private static final String PROJECT_KEY_PREFIX = "login:project:";
     private static final String ACCOUNT_TOKENS_KEY_PREFIX = "login:account:";
+    private static final String FAIL_ACCOUNT_KEY_PREFIX = "login:fail:account:";
+    private static final String FAIL_IP_KEY_PREFIX = "login:fail:ip:";
+    private static final Duration FAIL_WINDOW = Duration.ofMinutes(15);
+    private static final int ACCOUNT_FAIL_LIMIT = 5;
+    private static final int IP_FAIL_LIMIT = 20;
 
     private final AccountMapper accountMapper;
     private final RedisService redisService;
     private final PasswordEncoder passwordEncoder;
 
-    public LoginResult login(String account, String password) {
+    public LoginResult login(String account, String password, String ip) {
         String loginAccount = account == null ? "" : account.trim();
         if (StringUtils.isBlank(loginAccount) || loginAccount.length() > 64 || StringUtils.isBlank(password) || password.length() > 128) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
         }
+        // 锁定期间即使密码正确也不登录，避免被逐个试出来
+        String failAccountKey = FAIL_ACCOUNT_KEY_PREFIX + loginAccount.toLowerCase();
+        String failIpKey = FAIL_IP_KEY_PREFIX + (ip == null ? "" : ip);
+        if (failCount(failAccountKey) >= ACCOUNT_FAIL_LIMIT || failCount(failIpKey) >= IP_FAIL_LIMIT) {
+            throw new BusinessException(ErrorCode.LOGIN_LOCKED);
+        }
         Account found = accountMapper.selectOne(Wrappers.<Account>lambdaQuery().eq(Account::getAccount, loginAccount));
         if (found == null || !passwordEncoder.matches(password, found.getPasswordHash())) {
+            recordFailure(failAccountKey);
+            recordFailure(failIpKey);
             throw new BusinessException(ErrorCode.LOGIN_FAILED);
         }
+        redisService.delete(failAccountKey);
         if (found.getStatus() == null || found.getStatus() != Status.ENABLED) {
             throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
         }
@@ -100,6 +115,33 @@ public class LoginService {
             return Long.valueOf(accountId);
         } catch (NumberFormatException exception) {
             return null;
+        }
+    }
+
+    /** 有操作就续期：令牌、会话项目和账号的令牌集合都延长到 12 小时 */
+    public void touch(String authorization, long accountId) {
+        String token = token(authorization);
+        if (token == null) {
+            return;
+        }
+        redisService.expire(TOKEN_KEY_PREFIX + token, TOKEN_TTL);
+        redisService.expire(PROJECT_KEY_PREFIX + token, TOKEN_TTL);
+        redisService.expire(ACCOUNT_TOKENS_KEY_PREFIX + accountId, TOKEN_TTL);
+    }
+
+    private long failCount(String key) {
+        String value = redisService.get(key);
+        try {
+            return StringUtils.isBlank(value) ? 0 : Long.parseLong(value);
+        } catch (NumberFormatException exception) {
+            return 0;
+        }
+    }
+
+    /** 失败次数从第一次失败开始计时 15 分钟 */
+    private void recordFailure(String key) {
+        if (redisService.increment(key) == 1) {
+            redisService.expire(key, FAIL_WINDOW);
         }
     }
 

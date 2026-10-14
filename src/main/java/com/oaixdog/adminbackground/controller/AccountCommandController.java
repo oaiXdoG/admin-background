@@ -2,7 +2,6 @@ package com.oaixdog.adminbackground.controller;
 
 import com.oaixdog.adminbackground.exception.BusinessException;
 import com.oaixdog.adminbackground.exception.ErrorCode;
-import com.oaixdog.adminbackground.protocol.ApiResponse;
 import com.oaixdog.adminbackground.protocol.AccountCreateRequest;
 import com.oaixdog.adminbackground.protocol.AccountListRequest;
 import com.oaixdog.adminbackground.protocol.AccountProjectListRequest;
@@ -12,7 +11,9 @@ import com.oaixdog.adminbackground.protocol.AccountProjectUpdateRequest;
 import com.oaixdog.adminbackground.protocol.AccountRoleUpdateRequest;
 import com.oaixdog.adminbackground.protocol.AccountStatusRequest;
 import com.oaixdog.adminbackground.protocol.AccountUpdateRequest;
+import com.oaixdog.adminbackground.protocol.ApiResponse;
 import com.oaixdog.adminbackground.service.AccountCommandService;
+import com.oaixdog.adminbackground.service.OperationLogService;
 import com.zfoo.net.NetContext;
 import com.zfoo.net.anno.PacketReceiver;
 import com.zfoo.net.router.attachment.HttpAttachment;
@@ -27,6 +28,8 @@ import org.springframework.stereotype.Component;
 public class AccountCommandController {
 
     private final AccountCommandService accountCommandService;
+    private final OperationLogService operationLogService;
+
 
     @PacketReceiver
     public void atAccountListRequest(Session session, AccountListRequest request, HttpAttachment attachment) {
@@ -86,15 +89,18 @@ public class AccountCommandController {
     }
 
     private void handle(Session session, HttpAttachment attachment, Object request, Handler handler) {
+        OperationLogService.Operation operation = operationLogService.start(attachment);
         try {
             if (request == null) {
                 throw new BusinessException(ErrorCode.INVALID_REQUEST);
             }
             attachment.setHttpResponseStatus(HttpResponseStatus.OK);
             NetContext.getRouter().send(session, ApiResponse.success(handler.run()), attachment);
+            operationLogService.finish(operation, request, 0);
         } catch (BusinessException exception) {
             attachment.setHttpResponseStatus(HttpResponseStatus.OK);
             NetContext.getRouter().send(session, ApiResponse.businessError(exception.getCode(), exception.getMessage()), attachment);
+            operationLogService.finish(operation, request, exception.getCode());
         }
     }
 

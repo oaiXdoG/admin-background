@@ -62,8 +62,8 @@ public enum ErrorCode {
     MENU_NOT_FOUND(100009, "菜单不存在"),
 
     /**
-     * 判断的是父级不能用：不存在、选了自己、选了自己的下级，或父级是菜单。
-     * 子项只能挂在目录下面。
+     * 判断的是父级不能用：不存在、选了自己、选了自己的下级，或父级类型不对。
+     * 目录和菜单只能挂在目录下面，按钮只能挂在菜单下面。
      */
     MENU_PARENT_INVALID(100010, "父级菜单不合法"),
 
@@ -74,10 +74,10 @@ public enum ErrorCode {
     MENU_NOT_EMPTY(100011, "下面还有子项，不能删除"),
 
     /**
-     * 判断的是目录下面还有子项，不能改成菜单。
+     * 判断的是现有子项与新类型不匹配：目录下只能有目录和菜单，菜单下只能有按钮，按钮下不能有子项。
      * 不表示删除。
      */
-    MENU_TYPE_CHANGE_FORBIDDEN(100015, "目录下还有子项，不能改成菜单"),
+    MENU_TYPE_CHANGE_FORBIDDEN(100015, "下面的子项与该类型不匹配，不能修改类型"),
 
     PERMISSION_DENIED(100016, "无权访问"),
 
@@ -104,7 +104,26 @@ public enum ErrorCode {
     SUPER_ADMIN_REQUIRED(100036, "只有超级管理员可以分配超级管理员角色"),
     MENU_BLOCK_FULL(100037, "该顶级目录下的菜单数量已达上限"),
     PASSWORD_INCORRECT(100038, "原密码不正确"),
-    IMAGE_INVALID(100039, "图片格式不支持或超过大小限制");
+    IMAGE_INVALID(100039, "图片格式不支持或超过大小限制"),
+    PROJECT_APP_KEY_IMMUTABLE(100040, "项目创建后 App Key 不能修改"),
+    SECRET_KEY_MISSING(100041, "服务器未配置加密密钥 security.secret-key"),
+    LOG_STORAGE_NOT_CONFIGURED(100042, "日志存储未配置，请在「系统设置 → 日志存储」中配置"),
+    LOG_STORAGE_UNAVAILABLE(100043, "日志存储暂时不可用，请稍后重试"),
+    LOG_STORAGE_ADMIN_MISSING(100044, "未配置日志存储管理账号，不能修改保留期"),
+    QUERY_TEMPLATE_NOT_FOUND(100045, "查询模板不存在"),
+    QUERY_TEMPLATE_NAME_EXISTS(100046, "查询模板名称已存在"),
+    QUERY_TEMPLATE_INVALID(100047, "查询模板字段配置不合法"),
+    QUERY_CONDITION_INVALID(100048, "查询条件不合法"),
+
+    /**
+     * 判断的是同一账号或同一 IP 最近 15 分钟登录失败次数过多，暂时不再校验密码。
+     * 不表示账号被禁用。
+     */
+    LOGIN_LOCKED(100049, "登录失败次数过多，请 15 分钟后再试"),
+    PASSWORD_TOO_WEAK(100050, "密码至少 8 位，并且同时包含字母和数字"),
+    BACKUP_RUNNING(100051, "正在备份，请稍后再试"),
+    BACKUP_NOT_FOUND(100052, "备份文件不存在"),
+    BACKUP_TOO_LARGE(100053, "备份文件超过 50MB，请到服务器上直接复制");
 
     private final int code;
     private final String message;

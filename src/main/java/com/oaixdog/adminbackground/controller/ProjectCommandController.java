@@ -9,6 +9,7 @@ import com.oaixdog.adminbackground.protocol.ProjectManageListRequest;
 import com.oaixdog.adminbackground.protocol.ProjectReopenRequest;
 import com.oaixdog.adminbackground.protocol.ProjectSwitchRequest;
 import com.oaixdog.adminbackground.protocol.ProjectUpdateRequest;
+import com.oaixdog.adminbackground.service.OperationLogService;
 import com.oaixdog.adminbackground.service.ProjectCommandService;
 import com.zfoo.net.NetContext;
 import com.zfoo.net.anno.PacketReceiver;
@@ -24,6 +25,8 @@ import org.springframework.stereotype.Component;
 public class ProjectCommandController {
 
     private final ProjectCommandService projectCommandService;
+    private final OperationLogService operationLogService;
+
 
     @PacketReceiver
     public void atProjectManageListRequest(Session session, ProjectManageListRequest request, HttpAttachment attachment) {
@@ -65,15 +68,18 @@ public class ProjectCommandController {
     }
 
     private void handle(Session session, HttpAttachment attachment, Object request, Handler handler) {
+        OperationLogService.Operation operation = operationLogService.start(attachment);
         try {
             if (request == null) {
                 throw new BusinessException(ErrorCode.INVALID_REQUEST);
             }
             attachment.setHttpResponseStatus(HttpResponseStatus.OK);
             NetContext.getRouter().send(session, ApiResponse.success(handler.run()), attachment);
+            operationLogService.finish(operation, request, 0);
         } catch (BusinessException exception) {
             attachment.setHttpResponseStatus(HttpResponseStatus.OK);
             NetContext.getRouter().send(session, ApiResponse.businessError(exception.getCode(), exception.getMessage()), attachment);
+            operationLogService.finish(operation, request, exception.getCode());
         }
     }
 

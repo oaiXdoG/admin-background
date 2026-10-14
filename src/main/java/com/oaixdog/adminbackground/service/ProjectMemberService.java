@@ -51,7 +51,7 @@ public class ProjectMemberService {
     }
 
     public void add(String authorization, Long projectId, String account, Long roleId) {
-        permissionService.requireProjectMenu(authorization, projectId, MENU);
+        permissionService.requireProjectMenu(authorization, projectId, MENU + ":add");
         String loginAccount = account == null ? "" : account.trim();
         if (loginAccount.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
@@ -73,7 +73,7 @@ public class ProjectMemberService {
     }
 
     public void update(String authorization, Long projectId, Long accountId, Long roleId) {
-        permissionService.requireProjectMenu(authorization, projectId, MENU);
+        permissionService.requireProjectMenu(authorization, projectId, MENU + ":update");
         ProjectUser member = requireMember(projectId, accountId);
         requireProjectRole(projectId, roleId);
         projectUserMapper.update(null, Wrappers.<ProjectUser>lambdaUpdate().eq(ProjectUser::getId, member.getId())
@@ -81,7 +81,7 @@ public class ProjectMemberService {
     }
 
     public void remove(String authorization, Long projectId, Long accountId) {
-        PermissionService.ProjectAccess access = permissionService.requireProjectMenu(authorization, projectId, MENU);
+        PermissionService.ProjectAccess access = permissionService.requireProjectMenu(authorization, projectId, MENU + ":remove");
         if (Objects.equals(access.account().getId(), accountId)) {
             throw new BusinessException(ErrorCode.SELF_OPERATION_FORBIDDEN);
         }

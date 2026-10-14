@@ -15,7 +15,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * 系统设置：所有人看到的品牌信息。读取不需要登录（登录页要用），修改需要平台菜单 manage_setting。
+ * 系统设置：所有人看到的品牌信息。读取不需要登录（登录页要用），修改需要按钮权限 manage_setting:update。
  */
 @Service
 @RequiredArgsConstructor
@@ -38,7 +38,7 @@ public class SystemSettingService {
     @Transactional
     public SystemSettingResponse update(String authorization, String appName, String logo, String favicon,
                                         String loginTitle, String loginDescription, String copyright) {
-        permissionService.requirePlatformMenu(authorization, "manage_setting");
+        permissionService.requirePlatformMenu(authorization, "manage_setting:update");
         Map<String, String> values = new LinkedHashMap<>();
         values.put("appName", appName == null ? "" : appName.trim());
         values.put("loginTitle", loginTitle == null ? "" : loginTitle.trim());

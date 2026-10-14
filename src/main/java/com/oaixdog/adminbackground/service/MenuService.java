@@ -25,6 +25,7 @@ import java.util.Objects;
 
 /**
  * 菜单范围只在顶级目录选择，子项跟随上级。平台菜单只能分配给平台角色，项目菜单只能分配给模板和项目角色。
+ * 按钮挂在菜单下面，route_name 保存权限标识（例如 manage_user:create），写接口按它校验。
  */
 @Service
 @RequiredArgsConstructor
@@ -33,6 +34,7 @@ public class MenuService {
     private static final String MENU = "manage_menu";
     private static final int DIRECTORY = 1;
     private static final int MENU_ITEM = 2;
+    private static final int BUTTON = 3;
     private static final int NAME_MAX_LENGTH = 64;
     private static final int ICON_MAX_LENGTH = 64;
     private static final int ROUTE_NAME_MAX_LENGTH = 64;
@@ -55,13 +57,13 @@ public class MenuService {
 
     @Transactional
     public MenuResponse create(String authorization, MenuCreateRequest request) {
-        permissionService.requirePlatformMenu(authorization, MENU);
+        permissionService.requirePlatformMenu(authorization, MENU + ":create");
         Menu menu = new Menu();
         fill(menu, request.getParentId(), request.getMenuType(), request.getScope(), request.getName(), request.getIcon(),
                 request.getRouteName(), request.getRoutePath(), request.getStatus(), request.getHidden(), request.getSort());
         long menuId = nextMenuId(menu.getParentId());
         menu.setId(menuId);
-        requireValidParent(menuId, menu.getParentId());
+        requireValidParent(menuId, menu.getParentId(), menu.getMenuType());
         requireUniqueRouteName(menuId, menu.getRouteName());
         long now = System.currentTimeMillis();
         menu.setCreatedAt(now);
@@ -79,7 +81,7 @@ public class MenuService {
 
     @Transactional
     public MenuResponse update(String authorization, MenuUpdateRequest request) {
-        permissionService.requirePlatformMenu(authorization, MENU);
+        permissionService.requirePlatformMenu(authorization, MENU + ":update");
         if (request.getMenuId() == null) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
         }
@@ -93,10 +95,17 @@ public class MenuService {
         int previousScope = menu.getScope();
         fill(menu, request.getParentId(), request.getMenuType(), request.getScope(), request.getName(), request.getIcon(),
                 request.getRouteName(), request.getRoutePath(), request.getStatus(), request.getHidden(), request.getSort());
-        requireValidParent(menu.getId(), menu.getParentId());
+        requireValidParent(menu.getId(), menu.getParentId(), menu.getMenuType());
         requireUniqueRouteName(menu.getId(), menu.getRouteName());
         long children = childCount(menu.getId());
-        if (menu.getMenuType() == MENU_ITEM && children > 0) {
+        // 目录下只能是目录和菜单，菜单下只能是按钮，按钮下不能有子项
+        long buttons = buttonCount(menu.getId());
+        boolean childrenFit = switch (menu.getMenuType()) {
+            case DIRECTORY -> buttons == 0;
+            case MENU_ITEM -> buttons == children;
+            default -> children == 0;
+        };
+        if (!childrenFit) {
             throw new BusinessException(ErrorCode.MENU_TYPE_CHANGE_FORBIDDEN);
         }
         boolean scopeChanged = menu.getScope() != previousScope;
@@ -128,7 +137,7 @@ public class MenuService {
 
     @Transactional
     public void remove(String authorization, Long menuId) {
-        permissionService.requirePlatformMenu(authorization, MENU);
+        permissionService.requirePlatformMenu(authorization, MENU + ":remove");
         if (menuId == null) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
         }
@@ -148,7 +157,7 @@ public class MenuService {
 
     private void fill(Menu menu, Long parentId, Integer menuType, Integer scope, String name, String icon, String routeName,
                       String routePath, Integer status, Boolean hidden, Integer sort) {
-        if (menuType == null || (menuType != DIRECTORY && menuType != MENU_ITEM) || !Status.valid(status)) {
+        if (menuType == null || (menuType != DIRECTORY && menuType != MENU_ITEM && menuType != BUTTON) || !Status.valid(status)) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
         }
         String menuName = name == null ? "" : name.trim();
@@ -156,13 +165,16 @@ public class MenuService {
         String menuRouteName = routeName == null ? "" : routeName.trim();
         String menuRoutePath = routePath == null ? "" : routePath.trim();
         if (StringUtils.isBlank(menuName) || menuName.length() > NAME_MAX_LENGTH
-                || (menuType == MENU_ITEM && StringUtils.isBlank(menuRouteName))
+                || (menuType != DIRECTORY && StringUtils.isBlank(menuRouteName))
                 || menuIcon.length() > ICON_MAX_LENGTH
                 || menuRouteName.length() > ROUTE_NAME_MAX_LENGTH
                 || menuRoutePath.length() > ROUTE_PATH_MAX_LENGTH) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
         }
         Long menuParentId = parentId == null || parentId == 0 ? null : parentId;
+        if (menuType == BUTTON && menuParentId == null) {
+            throw new BusinessException(ErrorCode.MENU_PARENT_INVALID);
+        }
         // 子项的范围跟随上级，只有顶级目录使用请求里的范围
         Menu parent = menuParentId == null ? null : menuMapper.selectById(menuParentId);
         if (menuParentId != null && parent == null) {
@@ -176,11 +188,11 @@ public class MenuService {
         menu.setMenuType(menuType);
         menu.setScope(menuScope);
         menu.setName(menuName);
-        menu.setIcon(menuIcon);
+        menu.setIcon(menuType == BUTTON ? "" : menuIcon);
         menu.setRouteName(menuRouteName);
-        menu.setRoutePath(menuRoutePath);
+        menu.setRoutePath(menuType == BUTTON ? "" : menuRoutePath);
         menu.setStatus(status);
-        menu.setHidden(Boolean.TRUE.equals(hidden));
+        menu.setHidden(menuType != BUTTON && Boolean.TRUE.equals(hidden));
         menu.setBuiltIn(false);
         menu.setSort(sort == null ? 0 : sort);
     }
@@ -215,7 +227,8 @@ public class MenuService {
         return cursor / MENU_ID_BLOCK * MENU_ID_BLOCK;
     }
 
-    private void requireValidParent(Long menuId, Long parentId) {
+    /** 按钮的上级必须是菜单，目录和菜单的上级必须是目录 */
+    private void requireValidParent(Long menuId, Long parentId, int menuType) {
         if (parentId == null) {
             return;
         }
@@ -231,7 +244,8 @@ public class MenuService {
             if (parent == null) {
                 throw new BusinessException(ErrorCode.MENU_PARENT_INVALID);
             }
-            if (cursor.equals(parentId) && parent.getMenuType() != null && parent.getMenuType() != DIRECTORY) {
+            int expectedParentType = menuType == BUTTON ? MENU_ITEM : DIRECTORY;
+            if (cursor.equals(parentId) && !Objects.equals(parent.getMenuType(), expectedParentType)) {
                 throw new BusinessException(ErrorCode.MENU_PARENT_INVALID);
             }
             cursor = parent.getParentId();
@@ -250,6 +264,11 @@ public class MenuService {
 
     private long childCount(Long menuId) {
         Long count = menuMapper.selectCount(Wrappers.<Menu>lambdaQuery().eq(Menu::getParentId, menuId));
+        return count == null ? 0 : count;
+    }
+
+    private long buttonCount(Long menuId) {
+        Long count = menuMapper.selectCount(Wrappers.<Menu>lambdaQuery().eq(Menu::getParentId, menuId).eq(Menu::getMenuType, BUTTON));
         return count == null ? 0 : count;
     }
 

@@ -38,7 +38,9 @@ import java.util.Set;
 public class SystemInitializationService {
 
     private static final Logger log = LoggerFactory.getLogger(SystemInitializationService.class);
-    private static final String PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+    private static final String PASSWORD_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz";
+    private static final String PASSWORD_DIGITS = "23456789";
+    private static final String PASSWORD_CHARS = PASSWORD_LETTERS + PASSWORD_DIGITS;
 
     private final ApplicationProperties properties;
     private final PasswordEncoder passwordEncoder;
@@ -111,10 +113,13 @@ public class SystemInitializationService {
         }
     }
 
+    /** 16 位随机密码，前两位固定为一个字母和一个数字，保证符合密码规则 */
     private static String randomPassword() {
         SecureRandom random = new SecureRandom();
         StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < 16; i++) {
+        builder.append(PASSWORD_LETTERS.charAt(random.nextInt(PASSWORD_LETTERS.length())));
+        builder.append(PASSWORD_DIGITS.charAt(random.nextInt(PASSWORD_DIGITS.length())));
+        for (int i = 0; i < 14; i++) {
             builder.append(PASSWORD_CHARS.charAt(random.nextInt(PASSWORD_CHARS.length())));
         }
         return builder.toString();

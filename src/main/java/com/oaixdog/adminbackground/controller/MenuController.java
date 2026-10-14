@@ -8,6 +8,7 @@ import com.oaixdog.adminbackground.protocol.MenuListRequest;
 import com.oaixdog.adminbackground.protocol.MenuRemoveRequest;
 import com.oaixdog.adminbackground.protocol.MenuUpdateRequest;
 import com.oaixdog.adminbackground.service.MenuService;
+import com.oaixdog.adminbackground.service.OperationLogService;
 import com.zfoo.net.NetContext;
 import com.zfoo.net.anno.PacketReceiver;
 import com.zfoo.net.router.attachment.HttpAttachment;
@@ -28,6 +29,8 @@ public class MenuController {
     private static final Logger log = LoggerFactory.getLogger(MenuController.class);
 
     private final MenuService menuService;
+    private final OperationLogService operationLogService;
+
 
     @PacketReceiver
     public void atMenuListRequest(Session session, MenuListRequest request, HttpAttachment attachment) {
@@ -53,6 +56,7 @@ public class MenuController {
     }
 
     private void handle(Session session, HttpAttachment attachment, String action, Object request, Handler handler) {
+        OperationLogService.Operation operation = operationLogService.start(attachment);
         try {
             if (request == null) {
                 throw new BusinessException(ErrorCode.INVALID_REQUEST);
@@ -60,10 +64,12 @@ public class MenuController {
             Object data = handler.run();
             attachment.setHttpResponseStatus(HttpResponseStatus.OK);
             NetContext.getRouter().send(session, ApiResponse.success(data), attachment);
+            operationLogService.finish(operation, request, 0);
         } catch (BusinessException exception) {
             log.warn("{}业务失败: {}", action, exception.getMessage());
             attachment.setHttpResponseStatus(HttpResponseStatus.OK);
             NetContext.getRouter().send(session, ApiResponse.businessError(exception.getCode(), exception.getMessage()), attachment);
+            operationLogService.finish(operation, request, exception.getCode());
         }
     }
 

@@ -49,6 +49,7 @@ public class PermissionService {
         if (account == null || !Objects.equals(account.getStatus(), Status.ENABLED)) {
             throw new BusinessException(ErrorCode.UNAUTHENTICATED);
         }
+        loginService.touch(authorization, account.getId());
         return account;
     }
 

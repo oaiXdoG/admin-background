@@ -26,7 +26,6 @@ public class ProfileService {
 
     private static final int USERNAME_MAX_LENGTH = 64;
     private static final int REMARK_MAX_LENGTH = 128;
-    private static final int PASSWORD_MAX_LENGTH = 128;
     /** 头像 data URL 最长字符数，约 200KB 图片 */
     private static final int AVATAR_MAX_LENGTH = 280_000;
 
@@ -67,11 +66,14 @@ public class ProfileService {
     /** 修改密码需要原密码；成功后其他会话失效，当前会话保留 */
     public void changePassword(String authorization, String oldPassword, String newPassword) {
         Account account = permissionService.requireAccount(authorization);
-        if (StringUtils.isBlank(oldPassword) || StringUtils.isBlank(newPassword) || newPassword.length() > PASSWORD_MAX_LENGTH) {
+        if (StringUtils.isBlank(oldPassword) || StringUtils.isBlank(newPassword)) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
         }
         if (!passwordEncoder.matches(oldPassword, account.getPasswordHash())) {
             throw new BusinessException(ErrorCode.PASSWORD_INCORRECT);
+        }
+        if (!PasswordPolicy.valid(newPassword)) {
+            throw new BusinessException(ErrorCode.PASSWORD_TOO_WEAK);
         }
         accountMapper.update(null, Wrappers.<Account>lambdaUpdate().eq(Account::getId, account.getId())
                 .set(Account::getPasswordHash, passwordEncoder.encode(newPassword)).set(Account::getUpdatedAt, System.currentTimeMillis()));

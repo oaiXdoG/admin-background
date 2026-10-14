@@ -53,7 +53,7 @@ public class ProjectCommandService {
     /** 新建项目：生成「项目管理员」并复制勾选的模板，创建者的会话切到新项目 */
     @Transactional
     public ProjectCreateResponse create(String authorization, String appKey, String name, String description, List<Long> templateIds) {
-        Account account = permissionService.requirePlatformMenu(authorization, MENU);
+        Account account = permissionService.requirePlatformMenu(authorization, MENU + ":create");
         ProjectValues values = validate(appKey, name, description);
         if (projectMapper.selectCount(Wrappers.<Project>lambdaQuery().eq(Project::getAppKey, values.appKey())) > 0) {
             throw new BusinessException(ErrorCode.PROJECT_APP_KEY_EXISTS);
@@ -80,26 +80,23 @@ public class ProjectCommandService {
         return ProjectCreateResponse.valueOf(project, null, null);
     }
 
+    /** App Key 是日志按项目隔离的依据，创建后不可修改：请求可以不带，带了必须与原值一致 */
     public void update(String authorization, Long projectId, String appKey, String name, String description) {
-        permissionService.requirePlatformMenu(authorization, MENU);
-        requireProject(projectId);
-        ProjectValues values = validate(appKey, name, description);
-        if (projectMapper.selectCount(Wrappers.<Project>lambdaQuery().eq(Project::getAppKey, values.appKey()).ne(Project::getId, projectId)) > 0) {
-            throw new BusinessException(ErrorCode.PROJECT_APP_KEY_EXISTS);
+        permissionService.requirePlatformMenu(authorization, MENU + ":update");
+        Project project = requireProject(projectId);
+        if (StringUtils.isNotBlank(appKey) && !appKey.trim().equals(project.getAppKey())) {
+            throw new BusinessException(ErrorCode.PROJECT_APP_KEY_IMMUTABLE);
         }
-        try {
-            projectMapper.update(null, Wrappers.<Project>lambdaUpdate().eq(Project::getId, projectId)
-                    .set(Project::getAppKey, values.appKey()).set(Project::getName, values.name())
-                    .set(Project::getDescription, values.description()).set(Project::getUpdatedAt, System.currentTimeMillis()));
-        } catch (DuplicateKeyException exception) {
-            throw new BusinessException(ErrorCode.PROJECT_APP_KEY_EXISTS);
-        }
+        ProjectValues values = validate(project.getAppKey(), name, description);
+        projectMapper.update(null, Wrappers.<Project>lambdaUpdate().eq(Project::getId, projectId)
+                .set(Project::getName, values.name()).set(Project::getDescription, values.description())
+                .set(Project::getUpdatedAt, System.currentTimeMillis()));
     }
 
     /** 关闭后成员关系和角色保留，重新启用即恢复 */
     @Transactional
     public void close(String authorization, Long projectId) {
-        permissionService.requirePlatformMenu(authorization, MENU);
+        permissionService.requirePlatformMenu(authorization, MENU + ":status");
         Project project = requireProject(projectId);
         if (!Objects.equals(project.getStatus(), Status.ENABLED)) {
             throw new BusinessException(ErrorCode.PROJECT_NOT_FOUND);
@@ -109,7 +106,7 @@ public class ProjectCommandService {
     }
 
     public void reopen(String authorization, Long projectId) {
-        permissionService.requirePlatformMenu(authorization, MENU);
+        permissionService.requirePlatformMenu(authorization, MENU + ":status");
         requireProject(projectId);
         setStatus(projectId, Status.ENABLED);
     }

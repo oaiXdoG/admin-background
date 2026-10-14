@@ -12,6 +12,7 @@ import com.oaixdog.adminbackground.protocol.ProjectRoleMenuUpdateRequest;
 import com.oaixdog.adminbackground.protocol.ProjectRoleRemoveRequest;
 import com.oaixdog.adminbackground.protocol.ProjectRoleTemplatesRequest;
 import com.oaixdog.adminbackground.protocol.ProjectRoleUpdateRequest;
+import com.oaixdog.adminbackground.service.OperationLogService;
 import com.oaixdog.adminbackground.service.RoleService;
 import com.zfoo.net.NetContext;
 import com.zfoo.net.anno.PacketReceiver;
@@ -27,6 +28,8 @@ import org.springframework.stereotype.Component;
 public class ProjectRoleController {
 
     private final RoleService roleService;
+    private final OperationLogService operationLogService;
+
 
     @PacketReceiver
     public void atProjectRoleListRequest(Session session, ProjectRoleListRequest request, HttpAttachment attachment) {
@@ -80,15 +83,18 @@ public class ProjectRoleController {
     }
 
     private void handle(Session session, HttpAttachment attachment, Object request, Handler handler) {
+        OperationLogService.Operation operation = operationLogService.start(attachment);
         try {
             if (request == null) {
                 throw new BusinessException(ErrorCode.INVALID_REQUEST);
             }
             attachment.setHttpResponseStatus(HttpResponseStatus.OK);
             NetContext.getRouter().send(session, ApiResponse.success(handler.run()), attachment);
+            operationLogService.finish(operation, request, 0);
         } catch (BusinessException exception) {
             attachment.setHttpResponseStatus(HttpResponseStatus.OK);
             NetContext.getRouter().send(session, ApiResponse.businessError(exception.getCode(), exception.getMessage()), attachment);
+            operationLogService.finish(operation, request, exception.getCode());
         }
     }
 

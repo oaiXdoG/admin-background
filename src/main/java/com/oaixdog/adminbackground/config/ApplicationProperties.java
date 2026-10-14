@@ -51,4 +51,16 @@ public class ApplicationProperties {
     @Value("${admin.init.password:}")
     private String adminInitPassword;
 
+    /** 加密保存敏感配置（如日志存储密码）的密钥，修改后已保存的密码需要重新填写 */
+    @Value("${security.secret-key:}")
+    private String secretKey;
+
+    /** 数据库备份文件目录，运行账号需要可写 */
+    @Value("${backup.dir:backups}")
+    private String backupDir;
+
+    /** pg_dump 可执行文件，不在 PATH 里时写完整路径 */
+    @Value("${backup.pg-dump:pg_dump}")
+    private String backupPgDump;
+
 }

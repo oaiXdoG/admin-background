@@ -20,18 +20,39 @@
 4. 平台接口调用 `PermissionService.requirePlatformMenu(authorization, routeName)`，只认平台角色。
 5. 项目接口调用 `PermissionService.requireProjectMenu(authorization, projectId, routeName)`：请求项目必须等于会话当前项目，项目未关闭，账号是成员或超级管理员，并拥有目标菜单。
 6. 项目角色无论怎么配置都拿不到平台菜单，因此不能通过项目角色获得系统管理权限。
+7. 写接口校验页面下的按钮（菜单类型 3），按钮的 `route_name` 是权限标识，同样通过上面两个方法校验；查看类接口只校验页面。客户端从 `/api/access/menu` 返回的按钮得到权限标识，用来隐藏没有权限的按钮。
 
 ## 接口权限
 
-| 接口 | 权限菜单 |
+| 接口 | 权限（页面 / 按钮权限标识） |
 | --- | --- |
-| `/api/project/manage/list`、`create`、`update`、`close`、`reopen` | 平台 `manage_project` |
-| `/api/account/*` | 平台 `manage_user` |
-| `/api/role/*` | 平台 `manage_role` |
-| `/api/role-template/*` | 平台 `manage_role_template` |
-| `/api/menu/*` | 平台 `manage_menu` |
-| `/api/system/setting/update` | 平台 `manage_setting` |
-| `/api/project/member/*` | 项目 `project_member` |
-| `/api/project/role/*` | 项目 `project_role` |
+| `/api/project/manage/list` | 平台 `manage_project` |
+| `/api/project/create`、`update` | `manage_project:create`、`manage_project:update` |
+| `/api/project/close`、`reopen` | `manage_project:status` |
+| `/api/account/list`、`project/list`、`project/options`、`project/roles`、`role/options` | 平台 `manage_user` |
+| `/api/account/create`、`update`、`status` | `manage_user:create`、`manage_user:update`、`manage_user:status` |
+| `/api/account/role/update`、`project/update` | `manage_user:role`、`manage_user:project` |
+| `/api/role/list`、`menu/list` | 平台 `manage_role` |
+| `/api/role/create`、`update`、`remove`、`menu/update` | `manage_role:create`、`:update`、`:remove`、`:menu` |
+| `/api/role-template/list`、`menu/list` | 平台 `manage_role_template` |
+| `/api/role-template/create`、`update`、`remove`、`menu/update` | `manage_role_template:create`、`:update`、`:remove`、`:menu` |
+| `/api/menu/list` | 平台 `manage_menu` |
+| `/api/menu/create`、`update`、`remove` | `manage_menu:create`、`:update`、`:remove` |
+| `/api/system/setting/update` | `manage_setting:update` |
+| `/api/system/log-storage/get` | 平台 `manage_setting` |
+| `/api/system/log-storage/update`、`test`、`retention` | `manage_setting:storage` |
+| `/api/project/member/list`、`roles` | 项目 `project_member` |
+| `/api/project/member/add`、`update`、`remove` | `project_member:add`、`:update`、`:remove` |
+| `/api/project/role/list`、`menu/list`、`templates` | 项目 `project_role` |
+| `/api/project/role/create`、`update`、`remove`、`menu/update`、`import` | `project_role:create`、`:update`、`:remove`、`:menu`、`:import` |
+| `/api/data/template/list`（不带 category） | 项目 `data_template` |
+| `/api/data/template/list`（category=data / log） | 项目 `data_query` / `data_log` |
+| `/api/data/template/create`、`update`、`remove` | `data_template:create`、`:update`、`:remove` |
+| `/api/data/query` | 按模板分类：`data_query` 或 `data_log` |
+| `/api/system/operation-log/list` | 平台 `manage_operation_log` |
+| `/api/system/backup/get` | 平台 `manage_setting` |
+| `/api/system/backup/update`、`run`、`download`、`remove` | `manage_setting:backup` |
 | `/api/login`、`/api/logout`、`/api/project/list`、`/api/project/switch`、`/api/access/menu`、`/api/profile/*` | 登录即可 |
 | `/api/system/setting/get` | 不需要登录 |
+
+预置按钮见 `schema.sql`，均为内置（不能修改、删除），因为服务器按它们的权限标识校验写接口。超级管理员在启动时获得全部平台菜单（含按钮），在项目里拥有全部项目菜单（含按钮）。

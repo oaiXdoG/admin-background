@@ -72,7 +72,7 @@ public class RoleService {
     }
 
     public List<RoleResponse> list(String authorization, Scope scope) {
-        requireAccess(authorization, scope);
+        requireAccess(authorization, scope, "");
         List<Role> roles = roleMapper.selectList(inScope(scope).orderByAsc(Role::getId));
         Map<Long, String> templateNames = roleMapper.selectList(Wrappers.<Role>lambdaQuery().eq(Role::getRoleType, Role.TYPE_TEMPLATE))
                 .stream().collect(Collectors.toMap(Role::getId, Role::getName));
@@ -80,7 +80,7 @@ public class RoleService {
     }
 
     public RoleResponse create(String authorization, Scope scope, String name, String code, String description, Integer status) {
-        requireAccess(authorization, scope);
+        requireAccess(authorization, scope, ":create");
         RoleValues values = validate(name, code, description, status);
         requireUnique(scope, null, values);
         long now = System.currentTimeMillis();
@@ -99,7 +99,7 @@ public class RoleService {
     }
 
     public RoleResponse update(String authorization, Scope scope, Long roleId, String name, String code, String description, Integer status) {
-        requireAccess(authorization, scope);
+        requireAccess(authorization, scope, ":update");
         Role role = requireEditableRole(scope, roleId);
         RoleValues values = validate(name, code, description, status);
         requireUnique(scope, roleId, values);
@@ -114,7 +114,7 @@ public class RoleService {
 
     @Transactional
     public void remove(String authorization, Scope scope, Long roleId) {
-        requireAccess(authorization, scope);
+        requireAccess(authorization, scope, ":remove");
         requireEditableRole(scope, roleId);
         if (projectUserMapper.selectCount(Wrappers.<ProjectUser>lambdaQuery().eq(ProjectUser::getRoleId, roleId)) > 0
                 || accountRoleMapper.selectCount(Wrappers.<AccountRole>lambdaQuery().eq(AccountRole::getRoleId, roleId)) > 0) {
@@ -129,7 +129,7 @@ public class RoleService {
 
     /** 返回该角色可分配范围内的全部菜单和已分配的菜单 */
     public RoleMenuListResponse listMenus(String authorization, Scope scope, Long roleId) {
-        requireAccess(authorization, scope);
+        requireAccess(authorization, scope, "");
         requireRole(scope, roleId);
         List<Menu> menus = menuMapper.selectList(Wrappers.<Menu>lambdaQuery().eq(Menu::getScope, scope.menuScope())).stream()
                 .sorted(Comparator.comparing((Menu menu) -> menu.getParentId() == null ? 0L : menu.getParentId())
@@ -142,7 +142,7 @@ public class RoleService {
 
     @Transactional
     public void updateMenus(String authorization, Scope scope, Long roleId, List<Long> menuIds) {
-        requireAccess(authorization, scope);
+        requireAccess(authorization, scope, ":menu");
         requireEditableRole(scope, roleId);
         if (menuIds == null || menuIds.stream().anyMatch(Objects::isNull)) {
             throw new BusinessException(ErrorCode.ROLE_MENU_INVALID);
@@ -188,7 +188,7 @@ public class RoleService {
     /** 从模板导入到项目，已有同名或同编码的角色跳过；返回导入的数量 */
     @Transactional
     public int importTemplates(String authorization, Long projectId, List<Long> templateIds) {
-        requireAccess(authorization, Scope.project(projectId));
+        requireAccess(authorization, Scope.project(projectId), ":import");
         return copyTemplates(projectId, templateIds);
     }
 
@@ -263,11 +263,12 @@ public class RoleService {
         }
     }
 
-    private void requireAccess(String authorization, Scope scope) {
+    /** action 为空时是查看，只校验页面；写操作校验页面下的按钮，例如 manage_role:create */
+    private void requireAccess(String authorization, Scope scope, String action) {
         switch (scope.roleType()) {
-            case Role.TYPE_PLATFORM -> permissionService.requirePlatformMenu(authorization, "manage_role");
-            case Role.TYPE_TEMPLATE -> permissionService.requirePlatformMenu(authorization, "manage_role_template");
-            default -> permissionService.requireProjectMenu(authorization, scope.projectId(), "project_role");
+            case Role.TYPE_PLATFORM -> permissionService.requirePlatformMenu(authorization, "manage_role" + action);
+            case Role.TYPE_TEMPLATE -> permissionService.requirePlatformMenu(authorization, "manage_role_template" + action);
+            default -> permissionService.requireProjectMenu(authorization, scope.projectId(), "project_role" + action);
         }
     }
 
