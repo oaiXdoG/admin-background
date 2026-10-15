@@ -3,13 +3,14 @@
 每台业务服务器运行一个 Agent（`agent/` 目录，Java 17+ 单个 jar，说明见 `agent/README.md`），由它在本机托管业务进程（systemd）、执行指令和上报监控。后台不保存任何 SSH 账号、密码或密钥。
 
 ```
-后台 admin-background ◀── Agent 每 5 秒调用 /api/agent/heartbeat：上报指标，领取待执行指令
-                       ◀── Agent 执行完调用 /api/agent/result：回传结果和输出
+后台 admin-background ◀── Agent 每 5 秒调用 /api/agent/heartbeat：上报指标
+                       ◀── Agent 长轮询 /api/agent/wait：后台有指令或文件操作时立即返回，最长挂起 25 秒
+                       ◀── Agent 执行完调用 /api/agent/result：回传结果和输出，并立即补发一次心跳
 业务服务器：Agent（systemd 服务 admin-agent）
    └─ 每个业务进程一个 systemd 服务 adm-<进程名>.service，ExecStart 就是 java ... -jar ...
 ```
 
-第一期范围：服务器接入、进程登记（托管模式，含 JVM 参数模板）、启动 / 停止 / 重启、监控（当前值 + 最近 24 小时每分钟趋势）、执行记录。版本更新、改配置、批量滚动、热更新在后续阶段。
+已完成：服务器接入、进程登记（托管模式，含 JVM 参数模板、进程类型）、启动 / 停止 / 重启、部署（上传压缩包增量覆盖并重启）、文件管理（浏览、编辑、删除工作目录下的文件）、监控、执行记录。批量滚动、热更新在后续阶段。
 
 ## 一、接入流程
 
@@ -83,13 +84,41 @@ Agent 每 5 秒随心跳上报：
 - Redis：心跳时间和最新指标，保留 60 秒，供列表页使用；超过 30 秒没有心跳显示离线。
 - ClickHouse：每次心跳写入平台日志存储库（「系统设置 → 日志保留期」配置的库和管理账号）的 `server_metric` 表，主机一行（`process_id = 0`）、每个托管进程一行，保留 7 天。建表语句 `deploy/clickhouse/server_metric.sql`。使用 `async_insert` 由 ClickHouse 攒批写入，写入失败不影响心跳（告警每分钟最多打印一次）。
 
-页面「监控详情」（隐藏菜单 `server_monitor`，从服务器列表 / 进程管理的「监控」进入）：选择服务器和对象（主机或某个进程），时间范围为实时（最近 1 小时，每 10 秒刷新）、近 24 小时、近 7 天或选择日期（7 天内），粒度 10 秒 / 1 分钟 / 5 分钟 / 1 小时（每条曲线最多约 2000 个点）。每个指标一行：曲线、Max / Min / Avg（当前曲线所有点）、放大查看；所有曲线的提示框联动；可导出 CSV。
+页面「监控详情」（隐藏菜单 `server_monitor`，从服务器列表 / 进程管理的「监控」进入）：选择服务器和对象（主机或某个进程），时间范围为实时（最近 1 小时，每 10 秒刷新）、近 24 小时、近 7 天或选择日期（7 天内），粒度 10 秒 / 1 分钟 / 5 分钟 / 1 小时（每条曲线最多约 2000 个点）。每个指标一行：曲线、Max / Min / Avg（当前曲线所有点）、放大查看；鼠标所在的曲线显示提示框；可导出 CSV。
 
 ## 四、执行记录
 
-表 `server_task`。操作人每发起一次启动 / 停止 / 重启 / 删除，按进程生成一条记录：等待 → 执行中（Agent 领取）→ 成功 / 失败，保存执行输出。等待超过 10 分钟或执行超过 5 分钟没有结果显示为「超时」。同一进程有未完成的指令时不能再发起新指令。服务器离线时不能发起指令。
+表 `server_task`。操作人每发起一次启动 / 停止 / 重启 / 部署 / 删除，按进程生成一条记录（action 为 `start` / `stop` / `restart` / `deploy` / `remove`；部署记录的 `remark` 为「文件名（大小）· 备注」）：等待 → 执行中（Agent 领取）→ 成功 / 失败，保存执行输出。等待超过 10 分钟或执行超过 5 分钟没有结果显示为「超时」。同一进程有未完成的指令时不能再发起新指令。服务器离线时不能发起指令。
 
-## 五、接口
+## 五、进程类型、部署与文件管理
+
+### 进程类型
+
+项目内自定义的分类（例如 登录服、游戏服、回调服），表 `server_process_type`。进程可选一个类型（`server_process.type_id`，可空），列表按类型筛选。有进程在用的类型不能删除。
+
+### 部署（始终增量覆盖）
+
+1. 页面选择 zip 压缩包，按 6MB 分块上传（base64 后约 8MB，在 nginx 10MB 的请求限制以内）（`/api/server/process/deploy/upload`），上传完成后调用 `/api/server/process/deploy` 生成「部署」指令。后台把压缩包存在 `server.package-dir`（默认 `packages`）下，指令结束后删除。
+2. Agent 心跳领取指令后按块下载（`/api/agent/package`），校验 SHA-256，然后解压到进程的工作目录：
+   - 压缩包根目录对应工作目录；整个包外面只有一层文件夹时自动去掉这一层；
+   - 同路径的文件替换，新文件加入，包里没有的文件保持不变；
+   - 拒绝包含 `..` 或绝对路径的条目；进程配置了运行用户时，解压出的文件归该用户所有。
+3. 解压完成后重启进程（与「重启」指令相同：等待运行状态和端口），结果写入执行记录。部署失败不会回滚，需要时用旧的包再部署一次。
+
+压缩包里不需要启动脚本，启动命令由进程定义生成。删除文件用文件管理。
+
+### 文件管理
+
+在进程详情里浏览、编辑、删除工作目录下的文件。操作范围限制在工作目录以内（路径为相对工作目录的路径，不能包含 `..`）。请求通过长轮询立即交给 Agent 执行（通常 1 秒以内），页面每 0.5 秒查询一次结果：
+
+- `list`：列出目录（最多 1000 项），目录在前；
+- `read`：读取文本文件，最大 1MB，含 `\0` 的按二进制文件拒绝；
+- `write`：保存文本文件（只能修改已存在的文件，保留原有属主）；
+- `delete`：删除文件或目录（目录递归删除），不能删除工作目录本身。
+
+修改或删除后不会自动重启进程。
+
+## 六、接口
 
 ### 后台页面接口
 
@@ -102,18 +131,25 @@ Agent 每 5 秒随心跳上报：
 | `POST /api/server/host/update` | `server_host:update` | `{ projectId, serverId, name, groupName, remark }` → 服务器 |
 | `POST /api/server/host/remove` | `server_host:remove` | `{ projectId, serverId }`；服务器下还有进程时不能删除 |
 | `POST /api/server/host/install` | `server_host:update` | `{ projectId, serverId }` → `{ installCommand }`，生成新的一次性令牌 |
-| `POST /api/server/process/list` | `server_process` | `{ projectId }` → `{ list }`，每项含定义、`state`（`active` / `inactive` / `failed` / `activating` / `deactivating` / `unknown`，服务器离线时为 `unknown`）、`pendingRestart`、`metric`、`task`（未完成的指令） |
-| `POST /api/server/process/create` | `server_process:create` | 进程字段 + `{ projectId, serverId }` → 进程 |
+| `POST /api/server/process/list` | `server_process` | `{ projectId }` → `{ list }`，每项含定义（含 `typeId`、`typeName`）、最近一次成功部署 `deployedAt`、`deployRemark`、`state`（`active` / `inactive` / `failed` / `activating` / `deactivating` / `unknown`，服务器离线时为 `unknown`）、`pendingRestart`、`metric`、`task`（未完成的指令） |
+| `POST /api/server/process/create` | `server_process:create` | 进程字段（含可空的 `typeId`）+ `{ projectId, serverId }` → 进程 |
 | `POST /api/server/process/update` | `server_process:update` | 进程字段（不含 name、serverId）+ `{ projectId, processId }` → 进程 |
 | `POST /api/server/process/remove` | `server_process:remove` | `{ projectId, processId }` |
 | `POST /api/server/process/operate` | `server_process:operate` | `{ projectId, processIds, action }`，action 为 `start` / `stop` / `restart`，一次最多 50 个 → `{ taskIds }` |
+| `POST /api/server/process-type/list` | `server_process` | `{ projectId }` → `{ list }`，每项 `{ id, name, processCount }` |
+| `POST /api/server/process-type/save` | `server_process:update` | `{ projectId, typeId, name }`，typeId 为空表示新建，名称 1～32 字 → 类型 |
+| `POST /api/server/process-type/remove` | `server_process:update` | `{ projectId, typeId }`；有进程在用时不能删除 |
+| `POST /api/server/process/deploy/upload` | `server_process:deploy` | `{ projectId, processId, uploadId, index, total, data }`：第一块 uploadId 为空，之后带上返回的 uploadId；index 从 0 开始按顺序上传，data 为该块的 base64（解码后不超过 6MB），total 不超过 64 → `{ uploadId }`。上传 1 小时内有效 |
+| `POST /api/server/process/deploy` | `server_process:deploy` | `{ projectId, processId, uploadId, fileName, remark }`，所有块上传完成后调用；校验是 zip 且不为空，服务器在线、进程没有未完成的指令 → `{ taskId }` |
+| `POST /api/server/process/file/request` | `server_process:file` | `{ projectId, processId, op, path, content }`，op 为 `list` / `read` / `write` / `delete`，path 相对工作目录（空为工作目录本身），content 只在 write 时使用（最大 1MB）→ `{ opId }` |
+| `POST /api/server/process/file/result` | `server_process:file` | `{ projectId, opId }` → `{ status, success, message, data }`：status 为 `pending` / `done` / `timeout`（60 秒没有结果）；list 的 data 为 `{ entries: [{ name, dir, size, modifiedAt }] }`，read 的 data 为 `{ content, size }` |
 | `POST /api/server/metric/query` | 项目 `server_monitor` | `{ projectId, serverId, processId, startTime, endTime, step }`（processId 为空查主机，step 为 10 / 60 / 300 / 3600 秒，范围不超过 7 天、每条曲线不超过 2100 个点）→ `{ list }`，每项 `{ time, cpu, load1, memoryUsed, memoryTotal, diskUsed, diskTotal, netIn, netOut, packetsIn, packetsOut, tcp, threads }`，为该时间段的平均值 |
 | `POST /api/server/task/list` | `server_process` | `{ projectId, processId, page, pageSize }`（processId 可空）→ `{ total, list }`，按时间倒序 |
 | `POST /api/server/template/list` | `server_process` | `{ projectId }` → `{ list }` |
 | `POST /api/server/template/save` | `server_process:update` | `{ projectId, templateId, name, options }`，templateId 为空表示新建 → 模板 |
 | `POST /api/server/template/remove` | `server_process:update` | `{ projectId, templateId }`；有进程在用时不能删除 |
 
-错误码：`100065` 服务器不存在、`100066` 服务器名称已存在、`100067` 服务器下还有进程、`100068` 服务器离线、`100069` 进程不存在、`100070` 进程名已存在、`100071` 进程配置不合法、`100072` 进程有未完成的指令、`100073` 进程未停止、`100074` JVM 模板不存在、`100075` JVM 模板名称已存在、`100076` JVM 模板正在使用、`100077` 安装令牌无效、`100078` Agent 签名无效、`100079` 监控数据不可用（未配置 ClickHouse 管理账号）。
+错误码：`100080` 进程类型不存在、`100081` 进程类型名称已存在、`100082` 进程类型正在使用、`100083` 发布包上传无效或已过期、`100084` 发布包不是有效的 zip 或为空、`100085` 文件操作不存在或已过期、`100065` 服务器不存在、`100066` 服务器名称已存在、`100067` 服务器下还有进程、`100068` 服务器离线、`100069` 进程不存在、`100070` 进程名已存在、`100071` 进程配置不合法、`100072` 进程有未完成的指令、`100073` 进程未停止、`100074` JVM 模板不存在、`100075` JVM 模板名称已存在、`100076` JVM 模板正在使用、`100077` 安装令牌无效、`100078` Agent 签名无效、`100079` 监控数据不可用（未配置 ClickHouse 管理账号）。
 
 ### Agent 接口
 
@@ -122,11 +158,14 @@ Agent 每 5 秒随心跳上报：
 | 接口 | 请求 → 返回 |
 | --- | --- |
 | `POST /api/agent/register` | `{ token, hostname, os, privateIp, cpuCores, memoryTotal, agentVersion }` → `{ serverId, secret }` |
-| `POST /api/agent/heartbeat` | `{ hostname, os, privateIp, cpuCores, memoryTotal, agentVersion, host, processes }` → `{ processes, tasks }`：`processes` 为本服务器全部进程定义（含合并后的 JVM 参数和 `configVersion`），`tasks` 为本次领取的指令 `{ taskId, processId, processName, action }` |
+| `POST /api/agent/heartbeat` | `{ hostname, os, privateIp, cpuCores, memoryTotal, agentVersion, host, processes }` → `{ processes, tasks }`：`processes` 为本服务器全部进程定义（含合并后的 JVM 参数和 `configVersion`），`tasks` 为本次领取的指令 `{ taskId, processId, processName, action, param }`（部署指令的 param 为 `{ size, sha256, chunks }`），`fileOps` 为本次领取的文件操作 `{ opId, processId, op, path, content }`；进程定义含 `workDir`、`runUser` |
+| `POST /api/agent/wait` | `{ agentVersion }` → `{ tasks, fileOps }`（格式同心跳）：有待执行的指令或文件操作时立即返回，否则挂起，页面发起指令时立即返回，25 秒仍没有则返回空列表；Agent 收到后立即发起下一次。0.3.0 起心跳请求带 `longPoll: true`，后台不再随心跳下发指令 |
+| `POST /api/agent/package` | `{ taskId, index }` → `{ data }`：部署指令的发布包第 index 块（6MB，base64），只能下载本服务器执行中的部署指令 |
+| `POST /api/agent/file-result` | `{ opId, success, message, data }` → `null` |
 | `POST /api/agent/result` | `{ taskId, success, output }` → `null` |
 
 `host`：`{ cpu, load1, memoryUsed, memoryTotal, diskUsed, diskTotal, netIn, netOut, packetsIn, packetsOut, tcp, uptime }`（百分比 0～100，字节，字节/秒，个/秒，个，秒）。`processes[]`：`{ processId, state, pid, cpu, memory, threads, tcp, startedAt, configVersion }`。
 
-## 六、菜单
+## 七、菜单
 
-服务器管理（`server`）下：服务器列表 `server_host`（按钮 `:create`、`:update`、`:remove`）、进程管理 `server_process`（按钮 `:create`、`:update`、`:remove`、`:operate`）、监控详情 `server_monitor`（隐藏菜单，不在侧边栏显示）。原来的性能监控、运维操作两个演示页面删除。
+服务器管理（`server`）下：服务器列表 `server_host`（按钮 `:create`、`:update`、`:remove`）、进程管理 `server_process`（按钮 `:create`、`:update`、`:remove`、`:operate`、`:deploy` 部署、`:file` 文件管理）、监控详情 `server_monitor`（隐藏菜单，不在侧边栏显示）。原来的性能监控、运维操作两个演示页面删除。

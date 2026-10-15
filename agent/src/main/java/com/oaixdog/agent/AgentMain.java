@@ -20,6 +20,7 @@ import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -38,8 +39,11 @@ import java.util.concurrent.TimeUnit;
  */
 public final class AgentMain {
 
-    static final String VERSION = "0.1.4";
+    static final String VERSION = "0.3.2";
     private static final int HEARTBEAT_SECONDS = 5;
+    /** 长轮询：后台最长挂起 25 秒，请求超时要比它长；失败后隔几秒再试 */
+    private static final int WAIT_TIMEOUT_SECONDS = 40;
+    private static final int WAIT_RETRY_SECONDS = 5;
     /** 注册失败（令牌无效）时退出码，安装脚本生成的服务配置了不自动重启 */
     private static final int EXIT_REGISTER_FAILED = 2;
 
@@ -53,9 +57,14 @@ public final class AgentMain {
     private final Metrics metrics = new Metrics();
     private final Map<Long, Definition> definitions = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-    private final ExecutorService taskExecutor = Executors.newSingleThreadExecutor();
+    /** 长轮询线程：等待期间不占 CPU，后台有指令时立即返回 */
+    private final ScheduledExecutorService waiter = Executors.newSingleThreadScheduledExecutor();
+    /** 不同进程的指令并行执行（启动最多要等 180 秒，不能挡住其他进程）；同一进程同时只有一条指令，由后台保证 */
+    private final ExecutorService taskExecutor = Executors.newCachedThreadPool();
+    /** 文件操作不排在指令后面（部署可能要几分钟） */
+    private final ExecutorService fileExecutor = Executors.newSingleThreadExecutor();
 
-    record Definition(long processId, String name, int configVersion, int port, String unit) {
+    record Definition(long processId, String name, int configVersion, int port, String workDir, String runUser, String unit) {
     }
 
     private AgentMain(Path configFile) {
@@ -80,6 +89,7 @@ public final class AgentMain {
         // 先采一次作为基准，CPU、网络速率按两次采集的差值计算，第一次心跳就有真实数值
         metrics.host();
         scheduler.scheduleWithFixedDelay(this::heartbeat, HEARTBEAT_SECONDS, HEARTBEAT_SECONDS, TimeUnit.SECONDS);
+        waiter.execute(this::waitCommands);
     }
 
     /** 用安装令牌换取服务器 ID 和密钥，写回配置文件并删除令牌 */
@@ -119,17 +129,38 @@ public final class AgentMain {
             host.put("tcp", tcp.getOrDefault(-1, 0));
             body.put("host", host);
             body.put("processes", processMetrics(tcp));
+            body.put("longPoll", true);
             JsonNode data = post("/api/agent/heartbeat", body, true);
             syncDefinitions(data.path("processes"));
-            for (JsonNode task : data.path("tasks")) {
-                long taskId = task.path("taskId").asLong();
-                long processId = task.path("processId").asLong();
-                String processName = task.path("processName").asText();
-                String action = task.path("action").asText();
-                taskExecutor.submit(() -> execute(taskId, processId, processName, action));
-            }
+            // 后台不支持长轮询时（旧版本）指令仍随心跳下发
+            handleCommands(data);
         } catch (Exception exception) {
             log("心跳失败：" + exception.getMessage());
+        }
+    }
+
+    /** 长轮询领取指令：返回后立即发起下一次；失败（后台重启、网络断开）隔几秒再试 */
+    private void waitCommands() {
+        try {
+            handleCommands(post("/api/agent/wait", Map.of("agentVersion", VERSION), true, WAIT_TIMEOUT_SECONDS));
+            waiter.execute(this::waitCommands);
+        } catch (Exception exception) {
+            log("等待指令失败：" + exception.getMessage());
+            waiter.schedule(this::waitCommands, WAIT_RETRY_SECONDS, TimeUnit.SECONDS);
+        }
+    }
+
+    private void handleCommands(JsonNode data) {
+        for (JsonNode task : data.path("tasks")) {
+            long taskId = task.path("taskId").asLong();
+            long processId = task.path("processId").asLong();
+            String processName = task.path("processName").asText();
+            String action = task.path("action").asText();
+            JsonNode param = task.path("param");
+            taskExecutor.submit(() -> execute(taskId, processId, processName, action, param));
+        }
+        for (JsonNode op : data.path("fileOps")) {
+            fileExecutor.submit(() -> fileOp(op));
         }
     }
 
@@ -162,7 +193,7 @@ public final class AgentMain {
         boolean changed = false;
         for (JsonNode node : processes) {
             Definition definition = new Definition(node.path("processId").asLong(), node.path("name").asText(), node.path("configVersion").asInt(),
-                    node.path("port").asInt(), node.path("unit").asText());
+                    node.path("port").asInt(), node.path("workDir").asText(), node.path("runUser").asText(), node.path("unit").asText());
             changed |= Systemd.writeUnit(definition.name(), definition.unit());
             latest.put(definition.processId(), definition);
         }
@@ -173,28 +204,34 @@ public final class AgentMain {
         definitions.putAll(latest);
     }
 
-    private void execute(long taskId, long processId, String processName, String action) {
+    private void execute(long taskId, long processId, String processName, String action, JsonNode param) {
         Systemd.Result result;
         try {
             Definition definition = definitions.get(processId);
             if ("remove".equals(action)) {
                 result = Systemd.remove(processName);
-                state.remove(String.valueOf(processId));
-                save(stateFile, state);
+                saveState(processId, null);
             } else if (definition == null) {
                 result = new Systemd.Result(false, "本机没有这个进程的定义，请稍后重试\n");
             } else if ("stop".equals(action)) {
                 result = Systemd.stop(definition.name());
+            } else if ("deploy".equals(action)) {
+                String output = Deployer.deploy(index -> Base64.getDecoder().decode(post("/api/agent/package", Map.of("taskId", taskId, "index", index), true).path("data").asText()),
+                        param.path("chunks").asInt(), param.path("size").asLong(), param.path("sha256").asText(), Path.of(definition.workDir()), definition.runUser());
+                Systemd.Result restart = Systemd.start(definition.name(), "restart", definition.port());
+                result = new Systemd.Result(restart.success(), output + restart.output());
+                if (restart.success()) {
+                    saveState(processId, definition.configVersion());
+                }
             } else if ("start".equals(action) || "restart".equals(action)) {
                 result = Systemd.start(definition.name(), action, definition.port());
                 if (result.success()) {
-                    state.setProperty(String.valueOf(processId), String.valueOf(definition.configVersion()));
-                    save(stateFile, state);
+                    saveState(processId, definition.configVersion());
                 }
             } else {
                 result = new Systemd.Result(false, "不支持的指令：" + action + "\n");
             }
-        } catch (IOException exception) {
+        } catch (Exception exception) {
             result = new Systemd.Result(false, "执行失败：" + exception.getMessage() + "\n");
         }
         log("指令 " + taskId + " " + action + " " + processName + (result.success() ? " 成功" : " 失败"));
@@ -207,11 +244,55 @@ public final class AgentMain {
         } catch (IOException | InterruptedException exception) {
             log("回传指令 " + taskId + " 结果失败：" + exception.getMessage());
         }
+        // 立即上报一次进程状态，页面不用等下一次心跳
+        scheduler.execute(this::heartbeat);
+    }
+
+    /** 记录进程启动成功时的配置版本（null 为删除）；指令可能并行执行，写文件要串行 */
+    private void saveState(long processId, Integer configVersion) throws IOException {
+        synchronized (state) {
+            if (configVersion == null) {
+                state.remove(String.valueOf(processId));
+            } else {
+                state.setProperty(String.valueOf(processId), String.valueOf(configVersion));
+            }
+            save(stateFile, state);
+        }
+    }
+
+    /** 文件操作：在进程工作目录下执行，结果（data 为 JSON 文本）回传后台 */
+    private void fileOp(JsonNode op) {
+        String opId = op.path("opId").asText();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("opId", opId);
+        try {
+            Definition definition = definitions.get(op.path("processId").asLong());
+            if (definition == null) {
+                throw new IOException("本机没有这个进程的定义，请稍后重试");
+            }
+            Object data = FileOps.run(op.path("op").asText(), Path.of(definition.workDir()), op.path("path").asText(), op.path("content").asText());
+            body.put("success", true);
+            body.put("message", "");
+            body.put("data", data == null ? "" : json.writeValueAsString(data));
+        } catch (Exception exception) {
+            body.put("success", false);
+            body.put("message", exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage());
+            body.put("data", "");
+        }
+        try {
+            post("/api/agent/file-result", body, true);
+        } catch (IOException | InterruptedException exception) {
+            log("回传文件操作 " + opId + " 结果失败：" + exception.getMessage());
+        }
     }
 
     private JsonNode post(String path, Object body, boolean signed) throws IOException, InterruptedException {
+        return post(path, body, signed, 20);
+    }
+
+    private JsonNode post(String path, Object body, boolean signed, int timeoutSeconds) throws IOException, InterruptedException {
         String text = json.writeValueAsString(body);
-        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl() + path)).timeout(Duration.ofSeconds(20))
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl() + path)).timeout(Duration.ofSeconds(timeoutSeconds))
                 .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(text, StandardCharsets.UTF_8));
         if (signed) {
             String timestamp = String.valueOf(System.currentTimeMillis());

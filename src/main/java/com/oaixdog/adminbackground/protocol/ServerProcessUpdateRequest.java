@@ -12,6 +12,7 @@ public class ServerProcessUpdateRequest {
 
     private Long projectId;
     private Long processId;
+    private Long typeId;
     private String remark;
     private String workDir;
     private String javaPath;

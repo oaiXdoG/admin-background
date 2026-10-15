@@ -145,7 +145,13 @@ public enum ErrorCode {
     JVM_TEMPLATE_IN_USE(100076, "JVM 参数模板正在被进程使用，不能删除"),
     AGENT_TOKEN_INVALID(100077, "安装令牌无效或已过期，请在后台重新生成安装命令"),
     AGENT_SIGNATURE_INVALID(100078, "Agent 签名无效"),
-    SERVER_METRIC_UNAVAILABLE(100079, "监控数据不可用，请在「系统设置 → 日志保留期」配置 ClickHouse 管理账号");
+    SERVER_METRIC_UNAVAILABLE(100079, "监控数据不可用，请在「系统设置 → 日志保留期」配置 ClickHouse 管理账号"),
+    PROCESS_TYPE_NOT_FOUND(100080, "进程类型不存在"),
+    PROCESS_TYPE_NAME_EXISTS(100081, "进程类型名称已存在"),
+    PROCESS_TYPE_IN_USE(100082, "进程类型正在被进程使用，不能删除"),
+    PACKAGE_UPLOAD_INVALID(100083, "发布包上传无效或已过期，请重新上传"),
+    PACKAGE_INVALID(100084, "发布包不是有效的 zip 压缩包或为空"),
+    FILE_OP_NOT_FOUND(100085, "文件操作不存在或已过期");
 
     private final int code;
     private final String message;

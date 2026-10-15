@@ -4,12 +4,14 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.oaixdog.adminbackground.entity.ServerHost;
 import com.oaixdog.adminbackground.entity.ServerJvmTemplate;
 import com.oaixdog.adminbackground.entity.ServerProcess;
+import com.oaixdog.adminbackground.entity.ServerProcessType;
 import com.oaixdog.adminbackground.entity.ServerTask;
 import com.oaixdog.adminbackground.exception.BusinessException;
 import com.oaixdog.adminbackground.exception.ErrorCode;
 import com.oaixdog.adminbackground.mapper.ServerHostMapper;
 import com.oaixdog.adminbackground.mapper.ServerJvmTemplateMapper;
 import com.oaixdog.adminbackground.mapper.ServerProcessMapper;
+import com.oaixdog.adminbackground.mapper.ServerProcessTypeMapper;
 import com.zfoo.protocol.util.StringUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
@@ -58,11 +60,13 @@ public class ServerProcessService {
     private final ServerJvmTemplateMapper templateMapper;
     private final ServerHostService hostService;
     private final ServerTemplateService templateService;
+    private final ServerProcessTypeService typeService;
+    private final ServerProcessTypeMapper typeMapper;
     private final ServerTaskService taskService;
     private final ServerMetricService metricService;
 
     /** 进程表单里除 name、serverId 之外的字段 */
-    public record Definition(String remark, String workDir, String javaPath, Long templateId, String jvmOptions, String jar, String classpath,
+    public record Definition(Long typeId, String remark, String workDir, String javaPath, Long templateId, String jvmOptions, String jar, String classpath,
                              String mainClass, String programArgs, String env, String runUser, Integer port) {
     }
 
@@ -74,9 +78,12 @@ public class ServerProcessService {
                 .stream().collect(Collectors.toMap(ServerHost::getId, Function.identity()));
         Map<Long, String> templates = templateMapper.selectList(Wrappers.<ServerJvmTemplate>lambdaQuery().eq(ServerJvmTemplate::getProjectId, access.projectId()))
                 .stream().collect(Collectors.toMap(ServerJvmTemplate::getId, ServerJvmTemplate::getName));
+        Map<Long, String> types = typeMapper.selectList(Wrappers.<ServerProcessType>lambdaQuery().eq(ServerProcessType::getProjectId, access.projectId()))
+                .stream().collect(Collectors.toMap(ServerProcessType::getId, ServerProcessType::getName));
         List<Long> ids = processes.stream().map(ServerProcess::getId).toList();
         Map<Long, Map<String, Object>> metrics = metricService.processMetrics(ids);
         Map<Long, ServerTask> tasks = taskService.unfinished(ids);
+        Map<Long, ServerTask> deploys = taskService.latestDeploys(ids);
         Map<Long, Boolean> online = servers.keySet().stream().collect(Collectors.toMap(Function.identity(), metricService::isOnline));
         long now = System.currentTimeMillis();
         List<Map<String, Object>> result = new ArrayList<>();
@@ -91,6 +98,10 @@ public class ServerProcessService {
             item.put("serverName", server == null ? "" : server.getName());
             item.put("serverStatus", server == null ? "pending" : ServerHostService.status(server, serverOnline));
             item.put("templateName", process.getTemplateId() == null ? "" : templates.getOrDefault(process.getTemplateId(), ""));
+            item.put("typeName", process.getTypeId() == null ? "" : types.getOrDefault(process.getTypeId(), ""));
+            ServerTask deploy = deploys.get(process.getId());
+            item.put("deployedAt", deploy == null ? null : deploy.getFinishedAt());
+            item.put("deployRemark", deploy == null ? "" : deploy.getRemark());
             item.put("state", state);
             item.put("pendingRestart", pendingRestart);
             item.put("metric", metric);
@@ -194,6 +205,8 @@ public class ServerProcessService {
             item.put("name", process.getName());
             item.put("configVersion", process.getConfigVersion());
             item.put("port", process.getPort());
+            item.put("workDir", process.getWorkDir());
+            item.put("runUser", process.getRunUser());
             item.put("unit", unit(server, process, templateOptions));
             result.add(item);
         }
@@ -257,7 +270,7 @@ public class ServerProcessService {
         return StringUtils.isBlank(text) ? List.of() : Arrays.stream(text.split("\n")).filter(StringUtils::isNotBlank).toList();
     }
 
-    private ServerProcess require(long projectId, Long processId) {
+    public ServerProcess require(long projectId, Long processId) {
         ServerProcess process = processId == null ? null : processMapper.selectById(processId);
         if (process == null || !Objects.equals(process.getProjectId(), projectId)) {
             throw new BusinessException(ErrorCode.PROCESS_NOT_FOUND);
@@ -293,6 +306,10 @@ public class ServerProcessService {
         if (definition.templateId() != null) {
             templateService.require(projectId, definition.templateId());
         }
+        if (definition.typeId() != null) {
+            typeService.require(projectId, definition.typeId());
+        }
+        process.setTypeId(definition.typeId());
         process.setRemark(remark);
         process.setWorkDir(workDir);
         process.setJavaPath(javaPath);
@@ -311,6 +328,7 @@ public class ServerProcessService {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", process.getId());
         result.put("serverId", process.getServerId());
+        result.put("typeId", process.getTypeId());
         result.put("name", process.getName());
         result.put("remark", process.getRemark());
         result.put("workDir", process.getWorkDir());

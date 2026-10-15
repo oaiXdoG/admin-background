@@ -27,14 +27,23 @@ public class ServerTaskService {
     public static final String ACTION_STOP = "stop";
     public static final String ACTION_RESTART = "restart";
     public static final String ACTION_REMOVE = "remove";
+    public static final String ACTION_DEPLOY = "deploy";
     private static final long WAITING_TIMEOUT = 10 * 60_000L;
     private static final long RUNNING_TIMEOUT = 5 * 60_000L;
+    /** 部署要下载发布包，执行时间放宽 */
+    private static final long DEPLOY_RUNNING_TIMEOUT = 15 * 60_000L;
     private static final int OUTPUT_MAX_LENGTH = 65_536;
     private static final int PAGE_SIZE_MAX = 100;
 
     private final ServerTaskMapper serverTaskMapper;
+    private final AgentWaitService waitService;
 
     public long create(ServerProcess process, String action, String operator) {
+        return create(process, action, operator, "", "");
+    }
+
+    /** remark 为执行记录里展示的说明，param 为下发给 Agent 的参数 JSON */
+    public long create(ServerProcess process, String action, String operator, String remark, String param) {
         ServerTask task = new ServerTask();
         task.setProjectId(process.getProjectId());
         task.setServerId(process.getServerId());
@@ -43,11 +52,14 @@ public class ServerTaskService {
         task.setAction(action);
         task.setStatus(ServerTask.STATUS_WAITING);
         task.setOutput("");
+        task.setRemark(remark);
+        task.setParam(param);
         task.setOperator(operator);
         task.setCreatedAt(System.currentTimeMillis());
         task.setDispatchedAt(0L);
         task.setFinishedAt(0L);
         serverTaskMapper.insert(task);
+        waitService.wake(task.getServerId());
         return task.getId();
     }
 
@@ -59,7 +71,7 @@ public class ServerTaskService {
         }
         long now = System.currentTimeMillis();
         serverTaskMapper.selectList(Wrappers.<ServerTask>lambdaQuery().in(ServerTask::getProcessId, processIds)
-                        .in(ServerTask::getStatus, ServerTask.STATUS_WAITING, ServerTask.STATUS_RUNNING).gt(ServerTask::getCreatedAt, now - WAITING_TIMEOUT - RUNNING_TIMEOUT))
+                        .in(ServerTask::getStatus, ServerTask.STATUS_WAITING, ServerTask.STATUS_RUNNING).gt(ServerTask::getCreatedAt, now - WAITING_TIMEOUT - DEPLOY_RUNNING_TIMEOUT))
                 .stream().filter(task -> !timedOut(task, now)).forEach(task -> result.put(task.getProcessId(), task));
         return result;
     }
@@ -83,8 +95,25 @@ public class ServerTaskService {
         return tasks;
     }
 
+    /** 进程 ID → 最近一次成功的部署 */
+    public Map<Long, ServerTask> latestDeploys(Collection<Long> processIds) {
+        Map<Long, ServerTask> result = new HashMap<>();
+        if (processIds.isEmpty()) {
+            return result;
+        }
+        serverTaskMapper.selectList(Wrappers.<ServerTask>lambdaQuery().in(ServerTask::getProcessId, processIds).eq(ServerTask::getAction, ACTION_DEPLOY)
+                .eq(ServerTask::getStatus, ServerTask.STATUS_SUCCESS).orderByAsc(ServerTask::getId)).forEach(task -> result.put(task.getProcessId(), task));
+        return result;
+    }
+
+    /** 本服务器执行中的指令，不存在或不是执行中返回 null */
+    public ServerTask running(long serverId, Long taskId) {
+        ServerTask task = taskId == null ? null : serverTaskMapper.selectById(taskId);
+        return task == null || task.getServerId() != serverId || task.getStatus() != ServerTask.STATUS_RUNNING ? null : task;
+    }
+
     /** Agent 回传结果，只接受本服务器执行中的指令 */
-    public void finish(long serverId, Long taskId, boolean success, String output) {
+    public ServerTask finish(long serverId, Long taskId, boolean success, String output) {
         ServerTask task = taskId == null ? null : serverTaskMapper.selectById(taskId);
         if (task == null || task.getServerId() != serverId || task.getStatus() != ServerTask.STATUS_RUNNING) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
@@ -94,6 +123,7 @@ public class ServerTaskService {
         task.setOutput(text.length() > OUTPUT_MAX_LENGTH ? text.substring(text.length() - OUTPUT_MAX_LENGTH) : text);
         task.setFinishedAt(System.currentTimeMillis());
         serverTaskMapper.updateById(task);
+        return task;
     }
 
     public Map<String, Object> page(long projectId, Long processId, Integer page, Integer pageSize) {
@@ -118,6 +148,7 @@ public class ServerTaskService {
         result.put("processId", task.getProcessId());
         result.put("processName", task.getProcessName());
         result.put("action", task.getAction());
+        result.put("remark", task.getRemark());
         result.put("status", timedOut(task, now) ? "timeout" : statusName(task.getStatus()));
         result.put("output", task.getOutput());
         result.put("operator", task.getOperator());
@@ -128,7 +159,7 @@ public class ServerTaskService {
 
     private static boolean timedOut(ServerTask task, long now) {
         return task.getStatus() == ServerTask.STATUS_WAITING && now - task.getCreatedAt() > WAITING_TIMEOUT
-                || task.getStatus() == ServerTask.STATUS_RUNNING && now - task.getDispatchedAt() > RUNNING_TIMEOUT;
+                || task.getStatus() == ServerTask.STATUS_RUNNING && now - task.getDispatchedAt() > (ACTION_DEPLOY.equals(task.getAction()) ? DEPLOY_RUNNING_TIMEOUT : RUNNING_TIMEOUT);
     }
 
     private static String statusName(int status) {

@@ -21,4 +21,6 @@ public class AgentHeartbeatRequest {
     private String agentVersion;
     private AgentHostMetric host;
     private List<AgentProcessMetric> processes;
+    /** 为 true 表示 Agent 用长轮询领取指令，心跳不再下发指令 */
+    private Boolean longPoll;
 }

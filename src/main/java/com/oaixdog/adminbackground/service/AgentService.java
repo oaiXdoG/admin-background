@@ -12,6 +12,7 @@ import com.oaixdog.adminbackground.protocol.AgentHeartbeatRequest;
 import com.oaixdog.adminbackground.protocol.AgentHostMetric;
 import com.oaixdog.adminbackground.protocol.AgentProcessMetric;
 import com.oaixdog.adminbackground.protocol.AgentRegisterRequest;
+import com.zfoo.protocol.util.JsonUtils;
 import com.zfoo.protocol.util.StringUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -48,6 +50,9 @@ public class AgentService {
     private final ServerProcessMapper processMapper;
     private final ServerProcessService processService;
     private final ServerTaskService taskService;
+    private final ServerDeployService deployService;
+    private final ServerFileService fileService;
+    private final AgentWaitService waitService;
     private final ServerMetricService metricService;
     private final SecretCipher secretCipher;
     private final RedisService redisService;
@@ -117,12 +122,26 @@ public class AgentService {
             }
         }
         metricService.saveHeartbeat(server, hostMetric(request.getHost()), processMetrics);
-        List<Map<String, Object>> tasks = taskService.dispatch(server.getId()).stream().map(AgentService::toTask).toList();
-        return Map.of("processes", processService.agentDefinitions(server), "tasks", tasks);
+        // 0.3.0 起 Agent 用长轮询（/api/agent/wait）领取指令，心跳只上报指标；旧版 Agent 仍随心跳领取
+        if (Boolean.TRUE.equals(request.getLongPoll())) {
+            return Map.of("processes", processService.agentDefinitions(server), "tasks", List.of(), "fileOps", List.of());
+        }
+        Map<String, Object> commands = commands(server.getId());
+        return Map.of("processes", processService.agentDefinitions(server), "tasks", commands.get("tasks"), "fileOps", commands.get("fileOps"));
+    }
+
+    /** 长轮询：有指令或文件操作时通过 reply 返回 { tasks, fileOps }，最长等 25 秒 */
+    public void await(ServerHost server, Consumer<Map<String, Object>> reply) {
+        waitService.await(server.getId(), () -> commands(server.getId()), reply);
+    }
+
+    private Map<String, Object> commands(long serverId) {
+        List<Map<String, Object>> tasks = taskService.dispatch(serverId).stream().map(AgentService::toTask).toList();
+        return Map.of("tasks", tasks, "fileOps", fileService.dispatch(serverId));
     }
 
     public void result(ServerHost server, Long taskId, Boolean success, String output) {
-        taskService.finish(server.getId(), taskId, Boolean.TRUE.equals(success), output);
+        deployService.cleanup(taskService.finish(server.getId(), taskId, Boolean.TRUE.equals(success), output));
     }
 
     /** 服务器信息有变化时更新，返回是否有变化 */
@@ -191,6 +210,7 @@ public class AgentService {
         result.put("processId", task.getProcessId());
         result.put("processName", task.getProcessName());
         result.put("action", task.getAction());
+        result.put("param", StringUtils.isBlank(task.getParam()) ? null : JsonUtils.string2Object(task.getParam(), LinkedHashMap.class));
         return result;
     }
 }

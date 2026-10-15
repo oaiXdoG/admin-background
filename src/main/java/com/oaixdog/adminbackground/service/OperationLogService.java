@@ -97,6 +97,10 @@ public class OperationLogService {
             Map.entry("/api/server/process/operate", "启动/停止/重启进程"),
             Map.entry("/api/server/template/save", "保存 JVM 参数模板"),
             Map.entry("/api/server/template/remove", "删除 JVM 参数模板"),
+            Map.entry("/api/server/process-type/save", "保存进程类型"),
+            Map.entry("/api/server/process-type/remove", "删除进程类型"),
+            Map.entry("/api/server/process/deploy", "部署进程"),
+            Map.entry("/api/server/process/file/request", "进程文件操作"),
             Map.entry("/api/data/source/create", "新建数据源"),
             Map.entry("/api/data/source/update", "修改数据源"),
             Map.entry("/api/data/source/remove", "删除数据源"),
@@ -156,7 +160,7 @@ public class OperationLogService {
         }
     }
 
-    /** 名称含 password 或 secret 的字段记为 ******，图片字段记为 (图片) */
+    /** 名称含 password 或 secret 的字段记为 ******，图片字段记为 (图片)，文件内容记为 (文件内容) */
     @SuppressWarnings("unchecked")
     private static Map<String, Object> params(Object request) {
         if (request == null) {
@@ -170,6 +174,9 @@ public class OperationLogService {
             }
             if (IMAGE_FIELDS.contains(key)) {
                 return value == null || "".equals(value) ? "" : "(图片)";
+            }
+            if ("content".equals(key)) {
+                return value == null || "".equals(value) ? "" : "(文件内容)";
             }
             return value;
         });

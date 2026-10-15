@@ -122,6 +122,16 @@
         <protocol location="com.oaixdog.adminbackground.protocol.AgentHostMetric"/>
         <protocol location="com.oaixdog.adminbackground.protocol.AgentProcessMetric"/>
         <protocol location="com.oaixdog.adminbackground.protocol.AgentResultRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerProcessTypeListRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerProcessTypeSaveRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerProcessTypeRemoveRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerDeployUploadRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerDeployRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerFileRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerFileResultRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.AgentPackageRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.AgentFileResultRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.AgentWaitRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.ServerMetricQueryRequest"/>
     </module>
 

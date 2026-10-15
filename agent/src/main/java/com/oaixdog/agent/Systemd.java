@@ -56,7 +56,10 @@ final class Systemd {
         return result;
     }
 
-    /** start 或 restart：启用开机自启后启动，最多等 180 秒（游戏服加载配置表可能较慢）确认运行中（配置了端口时同时确认端口可连），再观察 3 秒确认没有退出 */
+    /**
+     * start 或 restart：启用开机自启后启动，最多等 180 秒（游戏服加载配置表可能较慢）确认运行中（配置了端口时同时确认端口可连），再观察 3 秒确认没有退出。
+     * 进程启动后退出时 systemd 会自动重启（状态仍是 activating），所以同时看自动重启次数，增加了就判定失败；失败时停止服务，避免反复重启。
+     */
     static Result start(String processName, String action, int port) {
         String unit = unitName(processName);
         StringBuilder output = new StringBuilder();
@@ -64,23 +67,39 @@ final class Systemd {
         Result command = run(120, "systemctl", action, unit);
         output.append(command.output());
         if (!command.success()) {
-            return new Result(false, output.append(diagnose(unit)).toString());
+            return fail(unit, output, "");
         }
+        int restarts = restarts(unit);
         for (int second = 0; second < START_WAIT_SECONDS; second++) {
             String state = activeState(unit);
-            if ("failed".equals(state) || "inactive".equals(state)) {
-                return new Result(false, output.append("进程启动后退出\n").append(diagnose(unit)).toString());
+            if ("failed".equals(state) || "inactive".equals(state) || restarts(unit) > restarts) {
+                return fail(unit, output, "进程启动后退出\n");
             }
             if ("active".equals(state) && (port <= 0 || portOpen(port))) {
                 sleep(STABLE_SECONDS);
-                boolean stable = "active".equals(activeState(unit));
-                String message = stable ? "已运行" + (port > 0 ? "，端口 " + port + " 可连接" : "") + "\n" : "进程启动后退出\n";
-                return new Result(stable, output.append(message).append(diagnose(unit)).toString());
+                if (!"active".equals(activeState(unit)) || restarts(unit) > restarts) {
+                    return fail(unit, output, "进程启动后退出\n");
+                }
+                return new Result(true, output.append("已运行").append(port > 0 ? "，端口 " + port + " 可连接" : "").append('\n').append(diagnose(unit)).toString());
             }
             sleep(1);
         }
-        String reason = port > 0 ? START_WAIT_SECONDS + " 秒内端口 " + port + " 没有监听\n" : START_WAIT_SECONDS + " 秒内没有进入运行状态\n";
-        return new Result(false, output.append(reason).append(diagnose(unit)).toString());
+        return fail(unit, output, port > 0 ? START_WAIT_SECONDS + " 秒内端口 " + port + " 没有监听\n" : START_WAIT_SECONDS + " 秒内没有进入运行状态\n");
+    }
+
+    /** 启动失败：先取诊断信息，再停止服务，避免 systemd 反复重启 */
+    private static Result fail(String unit, StringBuilder output, String reason) {
+        output.append(reason).append(diagnose(unit));
+        run(120, "systemctl", "stop", unit);
+        return new Result(false, output.append("\n启动失败，已停止服务，避免反复重启\n").toString());
+    }
+
+    private static int restarts(String unit) {
+        try {
+            return Integer.parseInt(run(10, "systemctl", "show", "-p", "NRestarts", "--value", unit).output().trim());
+        } catch (NumberFormatException exception) {
+            return 0;
+        }
     }
 
     /** 先发 SIGTERM，超过服务文件里的 TimeoutStopSec 再 SIGKILL */

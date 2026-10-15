@@ -26,6 +26,8 @@ public class ServerTask {
     private String action;
     private Integer status;
     private String output;
+    private String remark;
+    private String param;
     private String operator;
     private Long createdAt;
     private Long dispatchedAt;

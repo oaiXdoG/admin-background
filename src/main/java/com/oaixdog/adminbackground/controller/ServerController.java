@@ -3,6 +3,10 @@ package com.oaixdog.adminbackground.controller;
 import com.oaixdog.adminbackground.exception.BusinessException;
 import com.oaixdog.adminbackground.exception.ErrorCode;
 import com.oaixdog.adminbackground.protocol.ApiResponse;
+import com.oaixdog.adminbackground.protocol.ServerDeployRequest;
+import com.oaixdog.adminbackground.protocol.ServerDeployUploadRequest;
+import com.oaixdog.adminbackground.protocol.ServerFileRequest;
+import com.oaixdog.adminbackground.protocol.ServerFileResultRequest;
 import com.oaixdog.adminbackground.protocol.ServerHostCreateRequest;
 import com.oaixdog.adminbackground.protocol.ServerHostInstallRequest;
 import com.oaixdog.adminbackground.protocol.ServerHostListRequest;
@@ -12,6 +16,9 @@ import com.oaixdog.adminbackground.protocol.ServerProcessCreateRequest;
 import com.oaixdog.adminbackground.protocol.ServerProcessListRequest;
 import com.oaixdog.adminbackground.protocol.ServerProcessOperateRequest;
 import com.oaixdog.adminbackground.protocol.ServerProcessRemoveRequest;
+import com.oaixdog.adminbackground.protocol.ServerProcessTypeListRequest;
+import com.oaixdog.adminbackground.protocol.ServerProcessTypeRemoveRequest;
+import com.oaixdog.adminbackground.protocol.ServerProcessTypeSaveRequest;
 import com.oaixdog.adminbackground.protocol.ServerProcessUpdateRequest;
 import com.oaixdog.adminbackground.protocol.ServerMetricQueryRequest;
 import com.oaixdog.adminbackground.protocol.ServerTaskListRequest;
@@ -19,8 +26,11 @@ import com.oaixdog.adminbackground.protocol.ServerTemplateListRequest;
 import com.oaixdog.adminbackground.protocol.ServerTemplateRemoveRequest;
 import com.oaixdog.adminbackground.protocol.ServerTemplateSaveRequest;
 import com.oaixdog.adminbackground.service.OperationLogService;
+import com.oaixdog.adminbackground.service.ServerDeployService;
+import com.oaixdog.adminbackground.service.ServerFileService;
 import com.oaixdog.adminbackground.service.ServerHostService;
 import com.oaixdog.adminbackground.service.ServerProcessService;
+import com.oaixdog.adminbackground.service.ServerProcessTypeService;
 import com.oaixdog.adminbackground.service.ServerTemplateService;
 import com.zfoo.net.NetContext;
 import com.zfoo.net.anno.PacketReceiver;
@@ -41,6 +51,9 @@ public class ServerController {
     private final ServerHostService hostService;
     private final ServerProcessService processService;
     private final ServerTemplateService templateService;
+    private final ServerProcessTypeService typeService;
+    private final ServerDeployService deployService;
+    private final ServerFileService fileService;
     private final OperationLogService operationLogService;
 
     @PacketReceiver
@@ -78,14 +91,14 @@ public class ServerController {
 
     @PacketReceiver
     public void atServerProcessCreateRequest(Session session, ServerProcessCreateRequest request, HttpAttachment attachment) {
-        handle(session, attachment, request, () -> processService.create(auth(attachment), request.getProjectId(), request.getServerId(), request.getName(), definition(request.getRemark(),
+        handle(session, attachment, request, () -> processService.create(auth(attachment), request.getProjectId(), request.getServerId(), request.getName(), definition(request.getTypeId(), request.getRemark(),
                 request.getWorkDir(), request.getJavaPath(), request.getTemplateId(), request.getJvmOptions(), request.getJar(), request.getClasspath(), request.getMainClass(), request.getProgramArgs(), request.getEnv(),
                 request.getRunUser(), request.getPort())));
     }
 
     @PacketReceiver
     public void atServerProcessUpdateRequest(Session session, ServerProcessUpdateRequest request, HttpAttachment attachment) {
-        handle(session, attachment, request, () -> processService.update(auth(attachment), request.getProjectId(), request.getProcessId(), definition(request.getRemark(), request.getWorkDir(),
+        handle(session, attachment, request, () -> processService.update(auth(attachment), request.getProjectId(), request.getProcessId(), definition(request.getTypeId(), request.getRemark(), request.getWorkDir(),
                 request.getJavaPath(), request.getTemplateId(), request.getJvmOptions(), request.getJar(), request.getClasspath(), request.getMainClass(), request.getProgramArgs(), request.getEnv(), request.getRunUser(),
                 request.getPort())));
     }
@@ -132,9 +145,50 @@ public class ServerController {
         });
     }
 
-    private static ServerProcessService.Definition definition(String remark, String workDir, String javaPath, Long templateId, String jvmOptions, String jar,
+    @PacketReceiver
+    public void atServerProcessTypeListRequest(Session session, ServerProcessTypeListRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> Map.of("list", typeService.list(auth(attachment), request.getProjectId())));
+    }
+
+    @PacketReceiver
+    public void atServerProcessTypeSaveRequest(Session session, ServerProcessTypeSaveRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> typeService.save(auth(attachment), request.getProjectId(), request.getTypeId(), request.getName()));
+    }
+
+    @PacketReceiver
+    public void atServerProcessTypeRemoveRequest(Session session, ServerProcessTypeRemoveRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> {
+            typeService.remove(auth(attachment), request.getProjectId(), request.getTypeId());
+            return null;
+        });
+    }
+
+    @PacketReceiver
+    public void atServerDeployUploadRequest(Session session, ServerDeployUploadRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> deployService.upload(auth(attachment), request.getProjectId(), request.getProcessId(), request.getUploadId(),
+                request.getIndex(), request.getTotal(), request.getData()));
+    }
+
+    @PacketReceiver
+    public void atServerDeployRequest(Session session, ServerDeployRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> deployService.deploy(auth(attachment), request.getProjectId(), request.getProcessId(), request.getUploadId(),
+                request.getFileName(), request.getRemark()));
+    }
+
+    @PacketReceiver
+    public void atServerFileRequest(Session session, ServerFileRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> fileService.request(auth(attachment), request.getProjectId(), request.getProcessId(), request.getOp(),
+                request.getPath(), request.getContent()));
+    }
+
+    @PacketReceiver
+    public void atServerFileResultRequest(Session session, ServerFileResultRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> fileService.result(auth(attachment), request.getProjectId(), request.getOpId()));
+    }
+
+    private static ServerProcessService.Definition definition(Long typeId, String remark, String workDir, String javaPath, Long templateId, String jvmOptions, String jar,
                                                               String classpath, String mainClass, String programArgs, String env, String runUser, Integer port) {
-        return new ServerProcessService.Definition(remark, workDir, javaPath, templateId, jvmOptions, jar, classpath, mainClass, programArgs, env, runUser, port);
+        return new ServerProcessService.Definition(typeId, remark, workDir, javaPath, templateId, jvmOptions, jar, classpath, mainClass, programArgs, env, runUser, port);
     }
 
     private void handle(Session session, HttpAttachment attachment, Object request, Handler handler) {

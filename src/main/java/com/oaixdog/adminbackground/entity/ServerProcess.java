@@ -18,6 +18,7 @@ public class ServerProcess {
     private Long id;
     private Long projectId;
     private Long serverId;
+    private Long typeId;
     private String name;
     private String remark;
     private String workDir;

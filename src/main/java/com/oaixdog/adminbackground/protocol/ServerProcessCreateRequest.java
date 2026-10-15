@@ -12,6 +12,7 @@ public class ServerProcessCreateRequest {
     private Long projectId;
     private Long serverId;
     private String name;
+    private Long typeId;
     private String remark;
     private String workDir;
     private String javaPath;
