@@ -232,7 +232,7 @@ insert into menu (id, parent_id, menu_type, scope, name, icon, route_name, route
     (10024, 10005, 3, 1, '编辑', '', 'manage_menu:update', '', 1, true, 2, 0, 0),
     (10025, 10005, 3, 1, '删除', '', 'manage_menu:remove', '', 1, true, 3, 0, 0),
     (10026, 10006, 3, 1, '保存品牌信息', '', 'manage_setting:update', '', 1, true, 1, 0, 0),
-    (10027, 10006, 3, 1, '日志存储配置', '', 'manage_setting:storage', '', 1, true, 2, 0, 0),
+    (10027, 10006, 3, 1, '日志保留期', '', 'manage_setting:storage', '', 1, true, 2, 0, 0),
     (10029, 10006, 3, 1, '数据备份', '', 'manage_setting:backup', '', 1, true, 3, 0, 0),
     (20003, 20001, 3, 2, '添加成员', '', 'project_member:add', '', 1, true, 1, 0, 0),
     (20004, 20001, 3, 2, '修改角色', '', 'project_member:update', '', 1, true, 2, 0, 0),
