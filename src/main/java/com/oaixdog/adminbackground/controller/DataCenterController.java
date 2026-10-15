@@ -3,15 +3,22 @@ package com.oaixdog.adminbackground.controller;
 import com.oaixdog.adminbackground.exception.BusinessException;
 import com.oaixdog.adminbackground.exception.ErrorCode;
 import com.oaixdog.adminbackground.protocol.ApiResponse;
+import com.oaixdog.adminbackground.protocol.DataQueryExportRequest;
 import com.oaixdog.adminbackground.protocol.DataQueryRequest;
-import com.oaixdog.adminbackground.protocol.QueryTemplateCreateRequest;
-import com.oaixdog.adminbackground.protocol.QueryTemplateListRequest;
-import com.oaixdog.adminbackground.protocol.QueryTemplateRemoveRequest;
-import com.oaixdog.adminbackground.protocol.QueryTemplateUpdateRequest;
+import com.oaixdog.adminbackground.protocol.DataSourceCreateRequest;
+import com.oaixdog.adminbackground.protocol.DataSourceListRequest;
+import com.oaixdog.adminbackground.protocol.DataSourceQueriesRequest;
+import com.oaixdog.adminbackground.protocol.DataSourceRemoveRequest;
+import com.oaixdog.adminbackground.protocol.DataSourceTestRequest;
+import com.oaixdog.adminbackground.protocol.DataSourceUpdateRequest;
+import com.oaixdog.adminbackground.protocol.DataTemplateCreateRequest;
+import com.oaixdog.adminbackground.protocol.DataTemplateListRequest;
+import com.oaixdog.adminbackground.protocol.DataTemplateRemoveRequest;
+import com.oaixdog.adminbackground.protocol.DataTemplateUpdateRequest;
 import com.oaixdog.adminbackground.service.DataQueryService;
-import com.oaixdog.adminbackground.service.LogStorageService;
+import com.oaixdog.adminbackground.service.DataSourceService;
+import com.oaixdog.adminbackground.service.DataTemplateService;
 import com.oaixdog.adminbackground.service.OperationLogService;
-import com.oaixdog.adminbackground.service.QueryTemplateService;
 import com.zfoo.net.NetContext;
 import com.zfoo.net.anno.PacketReceiver;
 import com.zfoo.net.router.attachment.HttpAttachment;
@@ -23,39 +30,73 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
+/** 数据中心：业务服务器数据源、查询模板和数据查询 */
 @Component
 @RequiredArgsConstructor
 public class DataCenterController {
 
-    private final QueryTemplateService queryTemplateService;
+    private final DataSourceService dataSourceService;
+    private final DataTemplateService dataTemplateService;
     private final DataQueryService dataQueryService;
-    private final LogStorageService logStorageService;
     private final OperationLogService operationLogService;
 
-
     @PacketReceiver
-    public void atQueryTemplateListRequest(Session session, QueryTemplateListRequest request, HttpAttachment attachment) {
-        handle(session, attachment, request, () -> Map.of(
-                "list", queryTemplateService.list(auth(attachment), request.getProjectId(), request.getCategory()),
-                "database", logStorageService.database()));
+    public void atDataSourceListRequest(Session session, DataSourceListRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> Map.of("list", dataSourceService.list(auth(attachment), request.getProjectId())));
     }
 
     @PacketReceiver
-    public void atQueryTemplateCreateRequest(Session session, QueryTemplateCreateRequest request, HttpAttachment attachment) {
-        handle(session, attachment, request, () -> queryTemplateService.create(auth(attachment), request.getProjectId(), request.getCategory(),
-                request.getName(), request.getEvent(), request.getFields()));
+    public void atDataSourceCreateRequest(Session session, DataSourceCreateRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> dataSourceService.create(auth(attachment), request.getProjectId(), request.getName(),
+                request.getUrl(), request.getSecret(), request.getTimeoutMs(), request.getRemark()));
     }
 
     @PacketReceiver
-    public void atQueryTemplateUpdateRequest(Session session, QueryTemplateUpdateRequest request, HttpAttachment attachment) {
-        handle(session, attachment, request, () -> queryTemplateService.update(auth(attachment), request.getProjectId(), request.getTemplateId(),
-                request.getCategory(), request.getName(), request.getEvent(), request.getFields()));
+    public void atDataSourceUpdateRequest(Session session, DataSourceUpdateRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> dataSourceService.update(auth(attachment), request.getProjectId(), request.getSourceId(),
+                request.getName(), request.getUrl(), request.getSecret(), request.getTimeoutMs(), request.getRemark()));
     }
 
     @PacketReceiver
-    public void atQueryTemplateRemoveRequest(Session session, QueryTemplateRemoveRequest request, HttpAttachment attachment) {
+    public void atDataSourceRemoveRequest(Session session, DataSourceRemoveRequest request, HttpAttachment attachment) {
         handle(session, attachment, request, () -> {
-            queryTemplateService.remove(auth(attachment), request.getProjectId(), request.getTemplateId());
+            dataSourceService.remove(auth(attachment), request.getProjectId(), request.getSourceId());
+            return null;
+        });
+    }
+
+    @PacketReceiver
+    public void atDataSourceTestRequest(Session session, DataSourceTestRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> dataSourceService.test(auth(attachment), request.getProjectId(), request.getSourceId(),
+                request.getUrl(), request.getSecret(), request.getTimeoutMs()));
+    }
+
+    @PacketReceiver
+    public void atDataSourceQueriesRequest(Session session, DataSourceQueriesRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> dataSourceService.queries(auth(attachment), request.getProjectId(), request.getSourceId()));
+    }
+
+    @PacketReceiver
+    public void atDataTemplateListRequest(Session session, DataTemplateListRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> Map.of("list", dataTemplateService.list(auth(attachment), request.getProjectId())));
+    }
+
+    @PacketReceiver
+    public void atDataTemplateCreateRequest(Session session, DataTemplateCreateRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> dataTemplateService.create(auth(attachment), request.getProjectId(), request.getSourceId(),
+                request.getName(), request.getQuery(), request.getParams(), request.getFields()));
+    }
+
+    @PacketReceiver
+    public void atDataTemplateUpdateRequest(Session session, DataTemplateUpdateRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> dataTemplateService.update(auth(attachment), request.getProjectId(), request.getTemplateId(),
+                request.getSourceId(), request.getName(), request.getQuery(), request.getParams(), request.getFields()));
+    }
+
+    @PacketReceiver
+    public void atDataTemplateRemoveRequest(Session session, DataTemplateRemoveRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> {
+            dataTemplateService.remove(auth(attachment), request.getProjectId(), request.getTemplateId());
             return null;
         });
     }
@@ -63,7 +104,13 @@ public class DataCenterController {
     @PacketReceiver
     public void atDataQueryRequest(Session session, DataQueryRequest request, HttpAttachment attachment) {
         handle(session, attachment, request, () -> dataQueryService.query(auth(attachment), request.getProjectId(), request.getTemplateId(),
-                request.getStartTime(), request.getEndTime(), request.getRelation(), request.getConditions(), request.getPage(), request.getPageSize()));
+                request.getParams(), request.getPage(), request.getPageSize()));
+    }
+
+    @PacketReceiver
+    public void atDataQueryExportRequest(Session session, DataQueryExportRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> dataQueryService.export(auth(attachment), request.getProjectId(), request.getTemplateId(),
+                request.getParams()));
     }
 
     private void handle(Session session, HttpAttachment attachment, Object request, Handler handler) {

@@ -74,18 +74,35 @@
         <protocol location="com.oaixdog.adminbackground.protocol.LogStorageUpdateRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.LogStorageTestRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.LogStorageRetentionRequest"/>
-        <protocol location="com.oaixdog.adminbackground.protocol.QueryTemplateListRequest"/>
-        <protocol location="com.oaixdog.adminbackground.protocol.QueryTemplateCreateRequest"/>
-        <protocol location="com.oaixdog.adminbackground.protocol.QueryTemplateUpdateRequest"/>
-        <protocol location="com.oaixdog.adminbackground.protocol.QueryTemplateRemoveRequest"/>
-        <protocol location="com.oaixdog.adminbackground.protocol.DataQueryRequest"/>
-        <protocol location="com.oaixdog.adminbackground.protocol.DataQueryCondition"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.LogQueryCondition"/>
         <protocol location="com.oaixdog.adminbackground.protocol.OperationLogListRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.BackupGetRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.BackupUpdateRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.BackupRunRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.BackupDownloadRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.BackupRemoveRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.LogQueryRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.LogExportRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.LogEventListRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.LogEventFieldsRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.LogSourceGetRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.LogSourceSaveRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.LogSourceTestRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.LogEventDictListRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.LogEventSaveRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.LogEventRemoveRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.DataSourceListRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.DataSourceCreateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.DataSourceUpdateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.DataSourceRemoveRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.DataSourceTestRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.DataSourceQueriesRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.DataTemplateListRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.DataTemplateCreateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.DataTemplateUpdateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.DataTemplateRemoveRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.DataQueryRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.DataQueryExportRequest"/>
     </module>
 
 </protocols>

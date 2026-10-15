@@ -6,13 +6,9 @@ import lombok.Setter;
 
 @Getter
 @Setter
-@Protocol(id = 3063)
-public class QueryTemplateUpdateRequest {
+@Protocol(id = 3097)
+public class LogEventRemoveRequest {
 
     private Long projectId;
-    private Long templateId;
-    private String category;
-    private String name;
     private String event;
-    private String fields;
 }

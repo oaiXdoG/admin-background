@@ -9,6 +9,12 @@ public class BusinessException extends RuntimeException {
         this.errorCode = errorCode;
     }
 
+    /** 附带具体原因，例如业务服务器返回的错误信息 */
+    public BusinessException(ErrorCode errorCode, String detail) {
+        super(errorCode.getMessage() + "：" + detail);
+        this.errorCode = errorCode;
+    }
+
     public int getCode() {
         return errorCode.getCode();
     }

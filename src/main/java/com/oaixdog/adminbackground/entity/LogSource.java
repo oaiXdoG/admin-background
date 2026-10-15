@@ -6,22 +6,19 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Getter;
 import lombok.Setter;
 
-/** 数据中心查询模板：按项目保存，fields 为前端编辑的字段映射 JSON */
+/** 日志源：项目查询日志用的 ClickHouse 库（只读账号），read_password 加密保存；每个项目一个 */
 @Getter
 @Setter
-@TableName("query_template")
-public class QueryTemplate {
-
-    public static final String CATEGORY_DATA = "data";
-    public static final String CATEGORY_LOG = "log";
+@TableName("log_source")
+public class LogSource {
 
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long projectId;
-    private String category;
-    private String name;
-    private String event;
-    private String fields;
+    private String url;
+    private String database;
+    private String readUser;
+    private String readPassword;
     private Long createdAt;
     private Long updatedAt;
 }

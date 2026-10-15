@@ -83,6 +83,22 @@ public class PermissionService {
         return new ProjectAccess(account, projectId);
     }
 
+    /** 有其中任一项目菜单即可，用于多个页面共用的读取接口 */
+    public ProjectAccess requireAnyProjectMenu(String authorization, Long projectId, String... routeNames) {
+        BusinessException denied = null;
+        for (String routeName : routeNames) {
+            try {
+                return requireProjectMenu(authorization, projectId, routeName);
+            } catch (BusinessException exception) {
+                if (exception.getCode() != ErrorCode.PERMISSION_DENIED.getCode()) {
+                    throw exception;
+                }
+                denied = exception;
+            }
+        }
+        throw denied == null ? new BusinessException(ErrorCode.PERMISSION_DENIED) : denied;
+    }
+
     public List<MenuResponse> listMenus(String authorization, Long projectId) {
         Account account = requireAccount(authorization);
         Long sessionProjectId = loginService.findSessionProjectId(authorization);

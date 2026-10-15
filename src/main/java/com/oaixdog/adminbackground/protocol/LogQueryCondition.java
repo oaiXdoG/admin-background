@@ -4,13 +4,14 @@ import com.zfoo.protocol.anno.Protocol;
 import lombok.Getter;
 import lombok.Setter;
 
-/** field 是模板字段的 key；数值、时间（毫秒）、布尔值（true/false）都以文本传递，介于时 value2 为上限 */
+/** path 为日志自带列（time、server、actor、event、logId、retention）或 data.<路径>；type 决定比较方式；值以文本传递 */
 @Getter
 @Setter
 @Protocol(id = 3066)
-public class DataQueryCondition {
+public class LogQueryCondition {
 
-    private String field;
+    private String path;
+    private String type;
     private String operator;
     private String value;
     private String value2;

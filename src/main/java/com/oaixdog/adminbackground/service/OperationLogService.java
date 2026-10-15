@@ -83,9 +83,17 @@ public class OperationLogService {
             Map.entry("/api/system/backup/run", "立即备份"),
             Map.entry("/api/system/backup/download", "下载备份"),
             Map.entry("/api/system/backup/remove", "删除备份"),
-            Map.entry("/api/data/template/create", "新建查询模板"),
-            Map.entry("/api/data/template/update", "修改查询模板"),
-            Map.entry("/api/data/template/remove", "删除查询模板"));
+            Map.entry("/api/log/source/save", "修改日志源"),
+            Map.entry("/api/log/event/dict/save", "修改事件说明"),
+            Map.entry("/api/log/event/dict/remove", "删除事件说明"),
+            Map.entry("/api/log/export", "导出日志"),
+            Map.entry("/api/data/source/create", "新建数据源"),
+            Map.entry("/api/data/source/update", "修改数据源"),
+            Map.entry("/api/data/source/remove", "删除数据源"),
+            Map.entry("/api/data/template/create", "新建数据查询模板"),
+            Map.entry("/api/data/template/update", "修改数据查询模板"),
+            Map.entry("/api/data/template/remove", "删除数据查询模板"),
+            Map.entry("/api/data/query/export", "导出数据查询结果"));
 
     private final LoginService loginService;
     private final AccountMapper accountMapper;
@@ -138,7 +146,7 @@ public class OperationLogService {
         }
     }
 
-    /** 名称含 password 的字段记为 ******，图片字段记为 (图片) */
+    /** 名称含 password 或 secret 的字段记为 ******，图片字段记为 (图片) */
     @SuppressWarnings("unchecked")
     private static Map<String, Object> params(Object request) {
         if (request == null) {
@@ -146,7 +154,8 @@ public class OperationLogService {
         }
         Map<String, Object> params = JsonUtils.string2Object(JsonUtils.object2String(request), LinkedHashMap.class);
         params.replaceAll((key, value) -> {
-            if (key.toLowerCase().contains("password")) {
+            String lower = key.toLowerCase();
+            if (lower.contains("password") || lower.contains("secret")) {
                 return value == null || "".equals(value) ? "" : "******";
             }
             if (IMAGE_FIELDS.contains(key)) {

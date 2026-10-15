@@ -8,7 +8,7 @@ JAVA21="${JAVA_HOME_21:-/usr/local/Cellar/openjdk@21/21.0.9/libexec/openjdk.jdk/
 cd "$(dirname "$0")/.."
 
 rm -rf target/lib
-JAVA_HOME="$JAVA21" mvn -q -o package dependency:copy-dependencies -DskipTests -DincludeScope=runtime -DoutputDirectory=target/lib
+JAVA_HOME="$JAVA21" mvn -q -o clean package dependency:copy-dependencies -DskipTests -DincludeScope=runtime -DoutputDirectory=target/lib
 cp target/adminBackground-*.jar target/lib/
 
 rsync -az --delete target/lib/ "$HOST":/opt/admin-background/lib/

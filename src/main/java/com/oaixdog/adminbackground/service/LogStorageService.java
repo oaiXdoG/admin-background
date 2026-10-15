@@ -24,8 +24,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * 日志存储（ClickHouse）连接配置，存在 system_setting 的 logStorage.* 键里，密码加密保存，接口不返回明文。
- * 只读账号用于数据中心查询，管理账号只用于修改保留期。
+ * 平台日志存储：只用于管理普通日志的保留期（ClickHouse 的 TTL 作用于整张表，影响共用这张表的所有项目，所以归平台管理）。
+ * 配置存在 system_setting 的 logStorage.* 键里，管理账号密码加密保存。各项目查询日志用的只读连接在「日志中心 → 日志源」里各自配置。
  */
 @Service
 @RequiredArgsConstructor
@@ -39,8 +39,6 @@ public class LogStorageService {
     private static final String PREFIX = "logStorage.";
     private static final String URL = PREFIX + "url";
     private static final String DATABASE = PREFIX + "database";
-    private static final String READ_USER = PREFIX + "readUser";
-    private static final String READ_PASSWORD = PREFIX + "readPassword";
     private static final String ADMIN_USER = PREFIX + "adminUser";
     private static final String ADMIN_PASSWORD = PREFIX + "adminPassword";
     private static final int URL_MAX_LENGTH = 256;
@@ -60,20 +58,17 @@ public class LogStorageService {
         return response(load());
     }
 
+    /** 管理密码留空表示沿用已保存的密码 */
     @Transactional
-    public LogStorageResponse update(String authorization, String url, String database, String readUser, String readPassword,
-                                     String adminUser, String adminPassword) {
+    public LogStorageResponse update(String authorization, String url, String database, String adminUser, String adminPassword) {
         permissionService.requirePlatformMenu(authorization, EDIT_BUTTON);
         Map<String, String> saved = load();
-        Values values = validate(saved, url, database, readUser, readPassword, adminUser, adminPassword);
+        Values values = validate(saved, url, database, adminUser, adminPassword);
         Map<String, String> next = new LinkedHashMap<>();
         next.put(URL, values.url());
         next.put(DATABASE, values.database());
-        next.put(READ_USER, values.readUser());
-        next.put(READ_PASSWORD, StringUtils.isBlank(readPassword) ? saved.getOrDefault(READ_PASSWORD, "") : secretCipher.encrypt(readPassword));
         next.put(ADMIN_USER, values.adminUser());
-        String encryptedAdmin = StringUtils.isBlank(adminPassword) ? saved.getOrDefault(ADMIN_PASSWORD, "") : secretCipher.encrypt(adminPassword);
-        next.put(ADMIN_PASSWORD, StringUtils.isBlank(values.adminUser()) ? "" : encryptedAdmin);
+        next.put(ADMIN_PASSWORD, StringUtils.isBlank(adminPassword) ? saved.getOrDefault(ADMIN_PASSWORD, "") : secretCipher.encrypt(adminPassword));
         long now = System.currentTimeMillis();
         for (Map.Entry<String, String> entry : next.entrySet()) {
             SystemSetting setting = new SystemSetting();
@@ -87,30 +82,19 @@ public class LogStorageService {
         return response(load());
     }
 
-    /** 用表单里的值测试连接，密码留空时使用已保存的密码；返回只读账号和管理账号各自的结果 */
-    public LogStorageTestResponse test(String authorization, String url, String database, String readUser, String readPassword,
-                                       String adminUser, String adminPassword) {
+    /** 用表单里的值测试管理账号，并读出当前保留期；连接失败不是业务错误，结果在 adminOk / adminMessage 里 */
+    public LogStorageTestResponse test(String authorization, String url, String database, String adminUser, String adminPassword) {
         permissionService.requirePlatformMenu(authorization, EDIT_BUTTON);
-        Values values = validate(load(), url, database, readUser, readPassword, adminUser, adminPassword);
+        Values values = validate(load(), url, database, adminUser, adminPassword);
+        ClickHouseClient.Connection admin = new ClickHouseClient.Connection(values.url(), values.database(), values.adminUser(), values.adminPassword());
         LogStorageTestResponse response = new LogStorageTestResponse();
-        ClickHouseClient.Connection reader = new ClickHouseClient.Connection(values.url(), values.database(), values.readUser(), values.readPassword());
         try {
-            response.setVersion(String.valueOf(clickHouseClient.query(reader, "SELECT version() AS version", Map.of(), Map.of()).getFirst().get("version")));
-            response.setRetentionDays(retentionDays(reader));
-            response.setReadOk(true);
+            response.setVersion(String.valueOf(clickHouseClient.query(admin, "SELECT version() AS version", Map.of(), Map.of()).getFirst().get("version")));
+            response.setRetentionDays(retentionDays(admin));
+            response.setAdminOk(true);
         } catch (ClickHouseClient.ClickHouseException exception) {
-            response.setReadOk(false);
-            response.setReadMessage(exception.getMessage());
-        }
-        if (StringUtils.isNotBlank(values.adminUser())) {
-            ClickHouseClient.Connection admin = new ClickHouseClient.Connection(values.url(), values.database(), values.adminUser(), values.adminPassword());
-            try {
-                clickHouseClient.query(admin, "SELECT 1 AS ok", Map.of(), Map.of());
-                response.setAdminOk(true);
-            } catch (ClickHouseClient.ClickHouseException exception) {
-                response.setAdminOk(false);
-                response.setAdminMessage(exception.getMessage());
-            }
+            response.setAdminOk(false);
+            response.setAdminMessage(exception.getMessage());
         }
         return response;
     }
@@ -140,25 +124,10 @@ public class LogStorageService {
         return retentionDays;
     }
 
-    /** 数据中心查询使用的只读连接；未配置或密码无法解密时提示先配置 */
-    public ClickHouseClient.Connection requireReader() {
-        Map<String, String> saved = load();
-        String password = secretCipher.decrypt(saved.get(READ_PASSWORD));
-        if (StringUtils.isBlank(saved.get(URL)) || StringUtils.isBlank(saved.get(DATABASE)) || StringUtils.isBlank(saved.get(READ_USER)) || password == null) {
-            throw new BusinessException(ErrorCode.LOG_STORAGE_NOT_CONFIGURED);
-        }
-        return new ClickHouseClient.Connection(saved.get(URL), saved.get(DATABASE), saved.get(READ_USER), password);
-    }
-
-    /** 当前连接的库名，未配置时为空字符串 */
-    public String database() {
-        return load().getOrDefault(DATABASE, "");
-    }
-
-    private Integer retentionDays(ClickHouseClient.Connection reader) {
-        List<Map<String, Object>> rows = clickHouseClient.query(reader,
+    private Integer retentionDays(ClickHouseClient.Connection connection) {
+        List<Map<String, Object>> rows = clickHouseClient.query(connection,
                 "SELECT engine_full FROM system.tables WHERE database = {database:String} AND name = {table:String}",
-                Map.of("database", reader.database(), "table", TABLE), Map.of());
+                Map.of("database", connection.database(), "table", TABLE), Map.of());
         if (rows.isEmpty()) {
             return null;
         }
@@ -169,24 +138,19 @@ public class LogStorageService {
         return Integer.parseInt(matcher.group(1) != null ? matcher.group(1) : matcher.group(2));
     }
 
-    private Values validate(Map<String, String> saved, String url, String database, String readUser, String readPassword,
-                            String adminUser, String adminPassword) {
+    private Values validate(Map<String, String> saved, String url, String database, String adminUser, String adminPassword) {
         String storageUrl = url == null ? "" : url.trim();
         String storageDatabase = database == null ? "" : database.trim();
-        String storageReadUser = readUser == null ? "" : readUser.trim();
         String storageAdminUser = adminUser == null ? "" : adminUser.trim();
-        if (!validUrl(storageUrl) || !IDENTIFIER.matcher(storageDatabase).matches() || !USER.matcher(storageReadUser).matches()
-                || (StringUtils.isNotBlank(storageAdminUser) && !USER.matcher(storageAdminUser).matches())
-                || (readPassword != null && readPassword.length() > PASSWORD_MAX_LENGTH)
+        if (!validUrl(storageUrl) || !IDENTIFIER.matcher(storageDatabase).matches() || !USER.matcher(storageAdminUser).matches()
                 || (adminPassword != null && adminPassword.length() > PASSWORD_MAX_LENGTH)) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
         }
-        String plainRead = StringUtils.isBlank(readPassword) ? secretCipher.decrypt(saved.get(READ_PASSWORD)) : readPassword;
         String plainAdmin = StringUtils.isBlank(adminPassword) ? secretCipher.decrypt(saved.get(ADMIN_PASSWORD)) : adminPassword;
-        if (plainRead == null || (StringUtils.isNotBlank(storageAdminUser) && plainAdmin == null)) {
+        if (plainAdmin == null) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
         }
-        return new Values(storageUrl, storageDatabase, storageReadUser, plainRead, storageAdminUser, plainAdmin);
+        return new Values(storageUrl, storageDatabase, storageAdminUser, plainAdmin);
     }
 
     private static boolean validUrl(String url) {
@@ -211,13 +175,11 @@ public class LogStorageService {
         LogStorageResponse response = new LogStorageResponse();
         response.setUrl(saved.getOrDefault(URL, ""));
         response.setDatabase(saved.getOrDefault(DATABASE, ""));
-        response.setReadUser(saved.getOrDefault(READ_USER, ""));
-        response.setReadPasswordSet(secretCipher.decrypt(saved.get(READ_PASSWORD)) != null);
         response.setAdminUser(saved.getOrDefault(ADMIN_USER, ""));
         response.setAdminPasswordSet(secretCipher.decrypt(saved.get(ADMIN_PASSWORD)) != null);
         return response;
     }
 
-    private record Values(String url, String database, String readUser, String readPassword, String adminUser, String adminPassword) {
+    private record Values(String url, String database, String adminUser, String adminPassword) {
     }
 }

@@ -6,9 +6,8 @@ import lombok.Setter;
 
 @Getter
 @Setter
-@Protocol(id = 3064)
-public class QueryTemplateRemoveRequest {
+@Protocol(id = 3090)
+public class LogSourceGetRequest {
 
     private Long projectId;
-    private Long templateId;
 }

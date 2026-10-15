@@ -107,12 +107,10 @@ public enum ErrorCode {
     IMAGE_INVALID(100039, "图片格式不支持或超过大小限制"),
     PROJECT_APP_KEY_IMMUTABLE(100040, "项目创建后 App Key 不能修改"),
     SECRET_KEY_MISSING(100041, "服务器未配置加密密钥 security.secret-key"),
-    LOG_STORAGE_NOT_CONFIGURED(100042, "日志存储未配置，请在「系统设置 → 日志存储」中配置"),
+    LOG_STORAGE_NOT_CONFIGURED(100042, "当前项目还没有日志源，请在「日志中心 → 日志源」中添加"),
     LOG_STORAGE_UNAVAILABLE(100043, "日志存储暂时不可用，请稍后重试"),
     LOG_STORAGE_ADMIN_MISSING(100044, "未配置日志存储管理账号，不能修改保留期"),
-    QUERY_TEMPLATE_NOT_FOUND(100045, "查询模板不存在"),
-    QUERY_TEMPLATE_NAME_EXISTS(100046, "查询模板名称已存在"),
-    QUERY_TEMPLATE_INVALID(100047, "查询模板字段配置不合法"),
+    LOG_EVENT_INVALID(100047, "事件说明配置不合法"),
     QUERY_CONDITION_INVALID(100048, "查询条件不合法"),
 
     /**
@@ -123,7 +121,16 @@ public enum ErrorCode {
     PASSWORD_TOO_WEAK(100050, "密码至少 8 位，并且同时包含字母和数字"),
     BACKUP_RUNNING(100051, "正在备份，请稍后再试"),
     BACKUP_NOT_FOUND(100052, "备份文件不存在"),
-    BACKUP_TOO_LARGE(100053, "备份文件超过 50MB，请到服务器上直接复制");
+    BACKUP_TOO_LARGE(100053, "备份文件超过 50MB，请到服务器上直接复制"),
+    DATA_SOURCE_NOT_FOUND(100054, "数据源不存在"),
+    DATA_SOURCE_NAME_EXISTS(100055, "数据源名称已存在"),
+    DATA_SOURCE_IN_USE(100056, "数据源正在被查询模板使用，不能删除"),
+    DATA_SOURCE_FAILED(100057, "业务数据源请求失败"),
+    DATA_TEMPLATE_NOT_FOUND(100058, "查询模板不存在"),
+    DATA_TEMPLATE_NAME_EXISTS(100059, "查询模板名称已存在"),
+    DATA_TEMPLATE_INVALID(100060, "查询模板配置不合法"),
+    DATA_QUERY_PARAM_INVALID(100061, "查询参数不合法"),
+    LOG_SOURCE_FAILED(100064, "日志源连接失败");
 
     private final int code;
     private final String message;

@@ -36,13 +36,13 @@ public class LogStorageController {
     @PacketReceiver
     public void atLogStorageUpdateRequest(Session session, LogStorageUpdateRequest request, HttpAttachment attachment) {
         handle(session, attachment, request, () -> logStorageService.update(auth(attachment), request.getUrl(), request.getDatabase(),
-                request.getReadUser(), request.getReadPassword(), request.getAdminUser(), request.getAdminPassword()));
+                request.getAdminUser(), request.getAdminPassword()));
     }
 
     @PacketReceiver
     public void atLogStorageTestRequest(Session session, LogStorageTestRequest request, HttpAttachment attachment) {
         handle(session, attachment, request, () -> logStorageService.test(auth(attachment), request.getUrl(), request.getDatabase(),
-                request.getReadUser(), request.getReadPassword(), request.getAdminUser(), request.getAdminPassword()));
+                request.getAdminUser(), request.getAdminPassword()));
     }
 
     @PacketReceiver

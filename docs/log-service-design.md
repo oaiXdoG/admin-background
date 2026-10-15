@@ -1,6 +1,6 @@
 # 日志系统设计
 
-状态：已确认（第三版）。第 1～4 步已实施，数据中心接口见 `data-center.md`。第 5 步改为：admin 自己的操作日志不走 log-sdk，存 PostgreSQL 表 `operation_log`（见 `data-center.md` 第四节）。
+状态：已确认（第三版）。第 1～4 步已实施，日志中心接口见 `log-center.md`（原「数据中心」已拆分：日志在日志中心，业务数据在数据中心 `data-center.md`）。第 5 步改为：admin 自己的操作日志不走 log-sdk，存 PostgreSQL 表 `operation_log`（见 `log-center.md` 第六节）。
 
 ## 一、目标与约束
 

@@ -6,9 +6,8 @@ import lombok.Setter;
 
 @Getter
 @Setter
-@Protocol(id = 3061)
-public class QueryTemplateListRequest {
+@Protocol(id = 3095)
+public class LogEventDictListRequest {
 
     private Long projectId;
-    private String category;
 }

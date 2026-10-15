@@ -1,154 +1,161 @@
 # 数据中心
 
-设计背景见 `log-service-design.md`。日志由业务服务通过 log-sdk 写入 ClickHouse 的 `<库>.event` 表，admin 只读查询。
+查询业务服务器自身的数据（玩家资料、订单状态等「当前状态」）。与日志中心（log-sdk 写入 ClickHouse 的事件日志，见 `log-center.md`）是两套来源。
 
-## 一、日志存储配置（系统设置 → 日志存储）
+admin 不直连业务数据库，而是调用业务服务器按下面规范提供的查询接口：业务方决定能查什么、对敏感字段先做处理；业务库是 PostgreSQL 还是 MongoDB 对 admin 没有区别。
 
-配置保存在 `system_setting` 的 `logStorage.*` 键里；密码用 `security.secret-key`（`conf/application.properties`）经 AES-GCM 加密保存，接口不返回明文。修改密钥后已保存的密码无法解密，需要重新填写。
+## 一、页面与权限
 
-| 键 | 说明 |
+| 页面 | 菜单 | 用途 |
+| --- | --- | --- |
+| 数据查询 | `data_query` | 选模板，按模板定义的参数填写条件，结果按模板的结果字段成列；点行看完整返回；导出按钮 `data_query:export` |
+| 查询模板 | `data_template` | 管理员选数据源和查询名，定义参数和结果字段；可从数据源的查询清单自动带出。按钮 `:create`、`:update`、`:remove` |
+| 数据源 | `data_source` | 每个项目配置自己的业务服务器接口地址和签名密钥，可测试连接。按钮 `:create`、`:update`、`:remove` |
+
+## 二、业务服务器接口规范
+
+业务服务器提供两个 `POST` 接口，地址为数据源里配置的「接口地址」加路径：
+
+| 路径 | 用途 |
 | --- | --- |
-| `logStorage.url` | ClickHouse HTTP 地址，例如 `http://111.230.143.165:38123` |
-| `logStorage.database` | 库名：内网后台填 `logs_test`，正式后台填 `logs_prod` |
-| `logStorage.readUser` / `readPassword` | 只读账号，数据中心查询使用 |
-| `logStorage.adminUser` / `adminPassword` | 管理账号，只用于修改保留期，可不配置 |
+| `/admin/queries` | 查询清单：可用的查询、参数和结果字段（admin 建模板时读取，测试连接也调用它） |
+| `/admin/query` | 执行查询 |
 
-### `POST /api/system/log-storage/get`
+### 请求
 
-权限：平台 `manage_setting`。请求体 `{}`。
+- `Content-Type: application/json`，请求体为 JSON。
+- 请求头：
 
-```json
-{ "url": "http://111.230.143.165:38123", "database": "logs_test", "readUser": "reader_test", "readPasswordSet": true, "adminUser": "logs_admin", "adminPasswordSet": true }
-```
-
-### `POST /api/system/log-storage/update`
-
-权限：`manage_setting:storage`。返回同 `get`。
-
-| 字段 | 必填 | 说明 |
-| --- | --- | --- |
-| url | 是 | `http://` 或 `https://` 开头，最长 256 |
-| database | 是 | 字母、数字、下划线，字母或下划线开头 |
-| readUser | 是 | 字母、数字、`_.-`，最长 64 |
-| readPassword | 首次必填 | 留空表示沿用已保存的密码 |
-| adminUser | 否 | 留空表示不配置管理账号（同时清除管理密码） |
-| adminPassword | 配置管理账号时首次必填 | 留空表示沿用 |
-
-### `POST /api/system/log-storage/test`
-
-权限：`manage_setting:storage`。请求体同 `update`，用表单里的值测试（密码留空时用已保存的密码），不保存。
-
-```json
-{ "readOk": true, "readMessage": null, "adminOk": true, "adminMessage": null, "version": "25.8.1.1", "retentionDays": 90 }
-```
-
-`adminOk` 在未配置管理账号时为 `null`；`retentionDays` 从表的 TTL 读出，读不到时为 `null`。连接失败不是业务错误，结果在 `readOk` / `readMessage` 里。
-
-### `POST /api/system/log-storage/retention`
-
-权限：`manage_setting:storage`。请求 `{ "retentionDays": 180 }`（1～3650），使用已保存的管理账号执行：
-
-```sql
-ALTER TABLE <库>.event MODIFY TTL toDateTime(time) + INTERVAL 180 DAY DELETE WHERE retention = 'normal'
-```
-
-返回 `{ "retentionDays": 180 }`。永久保存的日志（`retention = 'permanent'`）不受影响。
-
-## 二、查询模板
-
-表 `query_template`，按项目保存。一个模板对应一个日志事件，字段映射决定结果列和可用的查询条件。
-
-| 字段 | 说明 |
+| 请求头 | 说明 |
 | --- | --- |
-| category | `data`（数据查询页面使用）或 `log`（日志查询页面使用） |
-| name | 项目内唯一，最长 64 |
-| event | 事件名，与 log-sdk 规则相同：小写字母开头，小写字母、数字、下划线，最长 64 |
-| fields | 字段映射 JSON 数组（文本），1～100 个，见下 |
+| `X-Admin-Timestamp` | 毫秒时间戳 |
+| `X-Admin-Signature` | `HMAC-SHA256(密钥, 时间戳 + "\n" + 请求体原文)`，小写十六进制 |
+| `X-Admin-Project` | 项目 App Key（一个业务服务器服务多个项目时用于区分） |
+| `X-Admin-Operator` | 操作人登录名，业务方可自行记录审计日志 |
 
-字段映射的每一项：
+- 业务方必须校验签名，并拒绝与当前时间相差超过 5 分钟的请求。签名用请求体**原文**计算，不要先解析再序列化。
 
-| 属性 | 说明 |
+`/admin/query` 的请求体：
+
+```json
+{ "query": "order_list", "params": { "playerId": "1001", "status": "paid", "minAmount": 30, "since": 1760410116381 }, "page": 1, "pageSize": 20 }
+```
+
+- `params` 只包含模板里定义且有值的参数，类型已按定义转换：文本和下拉为字符串，数字为数字，是/否为布尔，日期时间为毫秒时间戳。
+- `pageSize` 最大 200；导出时 admin 按 `pageSize=1000` 逐页取，最多 5 万行。
+
+`/admin/queries` 的请求体为 `{}`。
+
+### 响应
+
+HTTP 200，统一外层：
+
+```json
+{ "code": 0, "message": "", "data": { } }
+```
+
+`code` 不为 0 时 admin 把 `message` 展示给使用者（例如「玩家不存在」「签名错误」）。
+
+`/admin/query` 的 `data`：
+
+```json
+{ "total": 120, "list": [ { "orderId": "O0001", "playerId": "1001", "amount": 6, "status": "paid", "paidAt": 1760410116381, "profile": { "server": "S1" } } ] }
+```
+
+`list` 的每一行是任意 JSON 对象，admin 按模板的结果字段（字段名或用点连接的路径，如 `profile.server`）取值展示，点开详情可看到整行。
+
+`/admin/queries` 的 `data`：
+
+```json
+{
+  "queries": [
+    {
+      "name": "order_list",
+      "label": "订单列表",
+      "description": "按条件查询充值订单",
+      "params": [
+        { "name": "playerId", "label": "玩家 ID", "type": "string", "required": false },
+        { "name": "status", "label": "状态", "type": "select", "required": false,
+          "options": [ { "label": "已支付", "value": "paid" }, { "label": "已退款", "value": "refunded" } ] },
+        { "name": "minAmount", "label": "最低金额", "type": "number" },
+        { "name": "since", "label": "起始时间", "type": "time" }
+      ],
+      "fields": [
+        { "key": "orderId", "label": "订单号", "type": "string" },
+        { "key": "amount", "label": "金额", "type": "number" },
+        { "key": "paidAt", "label": "支付时间", "type": "time" }
+      ]
+    }
+  ]
+}
+```
+
+- 参数 `type`：`string`、`number`、`boolean`、`time`、`select`。
+- 字段 `type`：`string`、`number`、`boolean`、`time`（毫秒或日期文本）、`json`（对象/数组）、`jsonText`（JSON 字符串）。
+- 查询名：字母开头，字母、数字和 `_.-`，最长 64；参数名：字母、数字、下划线。
+
+### 签名校验示例（Java）
+
+```java
+String body = new String(rawBody, StandardCharsets.UTF_8);          // 请求体原文
+long timestamp = Long.parseLong(request.getHeader("X-Admin-Timestamp"));
+if (Math.abs(System.currentTimeMillis() - timestamp) > 300_000) {
+    return error(401, "请求已过期");
+}
+Mac mac = Mac.getInstance("HmacSHA256");
+mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+String expected = HexFormat.of().formatHex(mac.doFinal((timestamp + "\n" + body).getBytes(StandardCharsets.UTF_8)));
+if (!MessageDigest.isEqual(expected.getBytes(), request.getHeader("X-Admin-Signature").getBytes())) {
+    return error(401, "签名错误");
+}
+```
+
+## 三、admin 接口
+
+### 数据源
+
+表 `data_source`：`name`（项目内唯一）、`type`（目前只有 `http`）、`url`、`secret`（用 `security.secret-key` AES-GCM 加密保存）、`timeout_ms`（1～60 秒）、`remark`。
+
+| 接口 | 权限 | 说明 |
+| --- | --- | --- |
+| `POST /api/data/source/list` | `data_source` 或 `data_template` | `{ projectId }` → `{ list }`，不返回密钥，只返回 `secretSet` 和使用中的模板数 `templateCount` |
+| `POST /api/data/source/create` | `data_source:create` | `{ projectId, name, url, secret, timeoutMs, remark }`，密钥必填 |
+| `POST /api/data/source/update` | `data_source:update` | 另加 `sourceId`；`secret` 留空沿用 |
+| `POST /api/data/source/remove` | `data_source:remove` | `{ projectId, sourceId }`；被模板使用时返回 `100056` |
+| `POST /api/data/source/test` | `data_source:create` 或 `:update` | `{ projectId, sourceId?, url, secret, timeoutMs }`，调用 `/admin/queries`，返回 `{ queryCount }`；`sourceId` 有值且密钥留空时用已保存的密钥 |
+| `POST /api/data/source/queries` | `data_template` | `{ projectId, sourceId }` → `{ queries }`，原样返回业务服务器的查询清单 |
+
+### 查询模板
+
+表 `data_template`：`source_id`、`name`（项目内唯一）、`query`、`params`（参数定义 JSON，最多 30 个）、`fields`（结果字段映射 JSON，最多 100 个，格式同日志模板，`source` 为结果行里的字段路径）。
+
+| 接口 | 权限 |
 | --- | --- |
-| key | 结果列的标识，字母、数字、下划线，模板内唯一 |
-| label | 列标题，最长 64 |
-| source | 取值来源：日志自带列 `time`、`server`、`actor`、`event`、`logId`、`retention`，或业务字段路径 `data.<字段>[.<子字段>…]`（最多 8 段） |
-| type | `string`、`number`、`boolean`、`time`、`json`、`jsonText`。`time` 列只能是 `time` 类型，其余自带列只能是 `string` 或 `number` |
-| 其他 | 例如 `json`（JSON 子字段的展示映射），服务器原样保存，只给前端使用 |
+| `POST /api/data/template/list` | `data_template` 或 `data_query` |
+| `POST /api/data/template/create`、`update`、`remove` | `data_template:create`、`:update`、`:remove` |
 
-### `POST /api/data/template/list`
+### 数据查询
 
-请求 `{ "projectId": 1, "category": "log" }`。`category` 为空时是模板管理页面，权限 `data_template`；为 `data` / `log` 时权限分别是 `data_query` / `data_log`。
-
-```json
-{ "database": "logs_test", "list": [ { "id": 1, "category": "log", "name": "支付成功", "event": "pay_success", "fields": "[...]", "createdAt": 0, "updatedAt": 0 } ] }
-```
-
-`database` 为当前连接的库名，未配置时为空字符串，页面用来提示当前查询的环境。
-
-### `POST /api/data/template/create`、`update`、`remove`
-
-权限：`data_template:create`、`:update`、`:remove`。
-
-- create：`{ projectId, category, name, event, fields }`，返回模板
-- update：`{ projectId, templateId, category, name, event, fields }`，返回模板
-- remove：`{ projectId, templateId }`
-
-## 三、查询
-
-### `POST /api/data/query`
-
-权限：按模板分类，`data_query` 或 `data_log`。
-
-| 字段 | 必填 | 说明 |
+| 接口 | 权限 | 说明 |
 | --- | --- | --- |
-| projectId | 是 | 必须是会话当前项目 |
-| templateId | 是 | 必须属于该项目 |
-| startTime / endTime | 是 | 毫秒时间戳，范围 `[startTime, endTime)` |
-| relation | 有条件时必填 | `and` 或 `or` |
-| conditions | 否 | 最多 20 个：`{ field, operator, value, value2 }` |
-| page / pageSize | 否 | 默认 1 / 20；pageSize 最大 200，偏移量最大 10000 |
+| `POST /api/data/query` | `data_query` | `{ projectId, templateId, params, page, pageSize }`，`params` 为参数值 JSON 文本；返回 `{ total, list }`，`list` 原样透传 |
+| `POST /api/data/query/export` | `data_query:export` | 同上不分页，最多 5 万行 |
 
-条件：`field` 为模板字段的 `key`；值都以文本传递。
+参数校验：必填为空返回 `100061`（「请填写「xxx」」）；数字、时间无法解析，是/否不是 true/false，下拉值不在选项里，文本超过 512 字，都返回 `100061`。
 
-| 字段类型 | operator | value |
-| --- | --- | --- |
-| number | eq、ne、gt、ge、lt、le、between | 数字；between 时 value2 为上限（含） |
-| time | 同上 | 毫秒时间戳 |
-| boolean | eq、ne | `true` / `false` |
-| string、json、jsonText | eq、ne、contains（不区分大小写） | 文本 |
+### 错误码
 
-```json
-{ "database": "logs_test", "total": 1, "list": [ { "logId": "01M4...", "time": 1760410116381, "server": "game-1", "actor": "1001", "event": "pay_success", "retention": "permanent", "data": { "orderId": "A20261014001", "amount": 6.0 } } ] }
-```
+| 码 | 含义 |
+| --- | --- |
+| `100054` | 数据源不存在 |
+| `100055` | 数据源名称已存在 |
+| `100056` | 数据源正在被查询模板使用 |
+| `100057` | 业务数据源请求失败，消息里附带原因（无法连接、HTTP 状态、业务返回的 code 和 message 等） |
+| `100058` / `100059` / `100060` | 查询模板不存在 / 名称已存在 / 配置不合法 |
+| `100061` | 查询参数不合法 |
 
-实现约定：
+### 安全约定
 
-- 服务器按本次校验通过的项目填入 App Key 和模板的事件名，请求不能指定其他项目或事件。
-- 条件值和 JSON 路径都通过 ClickHouse 查询参数（`{name:Type}`）传递，不拼接进 SQL。
-- 查询使用只读账号，设置 `readonly=2`、`max_execution_time=15`，按时间倒序分页。
-- 未配置日志存储返回 `100042`；ClickHouse 不可用或查询失败返回 `100043`，原因记在服务器日志里。
-
-## 四、后台操作日志
-
-后台自己的操作日志不走 log-sdk，直接写 admin-background 的 PostgreSQL 表 `operation_log`，与上面的日志存储无关（日志存储只用来读取外部业务服务写入 ClickHouse 的日志）。在平台页面「系统管理 → 操作日志」（`manage_operation_log`）查询。
-
-- 记录范围：登录、退出和所有写操作（清单见 `OperationLogService.ACTIONS`），查询类接口不记录。业务失败也记录，`success=false` 并带错误码。记录失败只打印告警，不影响业务请求。
-- 表字段：`account_id`（登录失败时为空）、`account`（操作者登录名；登录时为请求里的登录名）、`route`、`action`、`success`、`code`（0 或业务错误码）、`params`、`created_at`。
-- `params` 为请求参数 JSON：名称含 password 的字段记为 `******`，logo、favicon、avatar 记为 `(图片)`，超过 8000 字符截断。
-- 目前不自动清理，数据量大时再按 `created_at` 定期删除。
-
-### `POST /api/system/operation-log/list`
-
-权限：平台 `manage_operation_log`。
-
-| 字段 | 必填 | 说明 |
-| --- | --- | --- |
-| startTime / endTime | 是 | 毫秒时间戳，范围 `[startTime, endTime)` |
-| account | 否 | 登录名，精确匹配 |
-| action | 否 | 操作名称，模糊匹配 |
-| success | 否 | `true` / `false`，为空不限 |
-| page / pageSize | 否 | 默认 1 / 20；pageSize 最大 200，偏移量最大 10000 |
-
-```json
-{ "total": 1, "list": [ { "id": 12, "time": 1760410116381, "accountId": 1, "account": "admin", "action": "修改菜单", "route": "/api/menu/update", "success": true, "code": 0, "params": { "menuId": 10002, "name": "用户管理" } } ] }
-```
+- 密钥加密保存，接口和页面不返回明文；操作日志里名称含 `secret`、`password` 的字段记为 `******`。
+- admin 调用业务服务器时不跟随重定向，拒绝解析到链路本地（含云厂商元数据 `169.254.169.254`）、组播和通配地址的目标。
+- 新建、修改、删除数据源和模板，以及导出，都记入操作日志。

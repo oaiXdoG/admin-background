@@ -45,13 +45,21 @@
 | `/api/project/member/add`、`update`、`remove` | `project_member:add`、`:update`、`:remove` |
 | `/api/project/role/list`、`menu/list`、`templates` | 项目 `project_role` |
 | `/api/project/role/create`、`update`、`remove`、`menu/update`、`import` | `project_role:create`、`:update`、`:remove`、`:menu`、`:import` |
-| `/api/data/template/list`（不带 category） | 项目 `data_template` |
-| `/api/data/template/list`（category=data / log） | 项目 `data_query` / `data_log` |
+| `/api/log/query` | 项目 `log_query` |
+| `/api/log/export` | `log_query:export` |
+| `/api/log/event/list`、`fields` | 项目 `log_query` 或 `log_event` |
+| `/api/log/event/dict/list` | 项目 `log_query` 或 `log_event` |
+| `/api/log/event/dict/save`、`remove` | `log_event:update`、`:remove` |
+| `/api/log/source/get` | 项目 `log_source` |
+| `/api/log/source/save`、`test` | `log_source:update` |
+| `/api/data/source/list` | 项目 `data_source` 或 `data_template` |
+| `/api/data/source/create`、`update`、`remove` | `data_source:create`、`:update`、`:remove` |
+| `/api/data/source/test` | `data_source:create` 或 `data_source:update` |
+| `/api/data/source/queries` | 项目 `data_template` |
+| `/api/data/template/list` | 项目 `data_template` 或 `data_query` |
 | `/api/data/template/create`、`update`、`remove` | `data_template:create`、`:update`、`:remove` |
-| `/api/data/query` | 按模板分类：`data_query` 或 `data_log` |
-| `/api/system/operation-log/list` | 平台 `manage_operation_log` |
-| `/api/system/backup/get` | 平台 `manage_setting` |
-| `/api/system/backup/update`、`run`、`download`、`remove` | `manage_setting:backup` |
+| `/api/data/query` | 项目 `data_query` |
+| `/api/data/query/export` | `data_query:export` |
 | `/api/login`、`/api/logout`、`/api/project/list`、`/api/project/switch`、`/api/access/menu`、`/api/profile/*` | 登录即可 |
 | `/api/system/setting/get` | 不需要登录 |
 
