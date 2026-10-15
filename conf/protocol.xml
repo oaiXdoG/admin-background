@@ -103,6 +103,26 @@
         <protocol location="com.oaixdog.adminbackground.protocol.DataTemplateRemoveRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.DataQueryRequest"/>
         <protocol location="com.oaixdog.adminbackground.protocol.DataQueryExportRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerHostListRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerHostCreateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerHostUpdateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerHostRemoveRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerHostInstallRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerProcessListRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerProcessCreateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerProcessUpdateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerProcessRemoveRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerProcessOperateRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerTaskListRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerTemplateListRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerTemplateSaveRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerTemplateRemoveRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.AgentRegisterRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.AgentHeartbeatRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.AgentHostMetric"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.AgentProcessMetric"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.AgentResultRequest"/>
+        <protocol location="com.oaixdog.adminbackground.protocol.ServerMetricQueryRequest"/>
     </module>
 
 </protocols>

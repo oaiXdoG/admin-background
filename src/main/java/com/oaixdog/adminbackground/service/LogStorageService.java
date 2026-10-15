@@ -166,6 +166,16 @@ public class LogStorageService {
         }
     }
 
+    /** 平台 ClickHouse 管理账号连接（服务器监控数据也存在这个库），未配置时为 null */
+    public ClickHouseClient.Connection adminConnection() {
+        Map<String, String> saved = load();
+        String adminPassword = secretCipher.decrypt(saved.get(ADMIN_PASSWORD));
+        if (StringUtils.isBlank(saved.get(URL)) || StringUtils.isBlank(saved.get(DATABASE)) || StringUtils.isBlank(saved.get(ADMIN_USER)) || adminPassword == null) {
+            return null;
+        }
+        return new ClickHouseClient.Connection(saved.get(URL), saved.get(DATABASE), saved.get(ADMIN_USER), adminPassword);
+    }
+
     private Map<String, String> load() {
         return systemSettingMapper.selectList(Wrappers.<SystemSetting>lambdaQuery().likeRight(SystemSetting::getKey, PREFIX)).stream()
                 .collect(Collectors.toMap(SystemSetting::getKey, SystemSetting::getValue));

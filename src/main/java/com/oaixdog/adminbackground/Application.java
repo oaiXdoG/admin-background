@@ -88,6 +88,25 @@ import com.oaixdog.adminbackground.protocol.RoleTemplateUpdateRequest;
 import com.oaixdog.adminbackground.protocol.RoleUpdateRequest;
 import com.oaixdog.adminbackground.protocol.SystemSettingGetRequest;
 import com.oaixdog.adminbackground.protocol.SystemSettingUpdateRequest;
+import com.oaixdog.adminbackground.protocol.ServerHostListRequest;
+import com.oaixdog.adminbackground.protocol.ServerHostCreateRequest;
+import com.oaixdog.adminbackground.protocol.ServerHostUpdateRequest;
+import com.oaixdog.adminbackground.protocol.ServerHostRemoveRequest;
+import com.oaixdog.adminbackground.protocol.ServerHostInstallRequest;
+import com.oaixdog.adminbackground.protocol.ServerProcessListRequest;
+import com.oaixdog.adminbackground.protocol.ServerProcessCreateRequest;
+import com.oaixdog.adminbackground.protocol.ServerProcessUpdateRequest;
+import com.oaixdog.adminbackground.protocol.ServerProcessRemoveRequest;
+import com.oaixdog.adminbackground.protocol.ServerProcessOperateRequest;
+import com.oaixdog.adminbackground.protocol.ServerMetricQueryRequest;
+import com.oaixdog.adminbackground.protocol.ServerTaskListRequest;
+import com.oaixdog.adminbackground.protocol.ServerTemplateListRequest;
+import com.oaixdog.adminbackground.protocol.ServerTemplateSaveRequest;
+import com.oaixdog.adminbackground.protocol.ServerTemplateRemoveRequest;
+import com.oaixdog.adminbackground.protocol.AgentRegisterRequest;
+import com.oaixdog.adminbackground.protocol.AgentHeartbeatRequest;
+import com.oaixdog.adminbackground.protocol.AgentResultRequest;
+import com.oaixdog.adminbackground.service.AgentService;
 import com.zfoo.net.core.HostAndPort;
 import com.zfoo.net.core.http.HttpServer;
 import com.zfoo.net.packet.DecodedPacketInfo;
@@ -202,6 +221,24 @@ public class Application {
                 case "POST /api/system/backup/run" -> parseRequest(rawRequest, BackupRunRequest.class);
                 case "POST /api/system/backup/download" -> parseRequest(rawRequest, BackupDownloadRequest.class);
                 case "POST /api/system/backup/remove" -> parseRequest(rawRequest, BackupRemoveRequest.class);
+                case "POST /api/server/host/list" -> parseRequest(rawRequest, ServerHostListRequest.class);
+                case "POST /api/server/host/create" -> parseRequest(rawRequest, ServerHostCreateRequest.class);
+                case "POST /api/server/host/update" -> parseRequest(rawRequest, ServerHostUpdateRequest.class);
+                case "POST /api/server/host/remove" -> parseRequest(rawRequest, ServerHostRemoveRequest.class);
+                case "POST /api/server/host/install" -> parseRequest(rawRequest, ServerHostInstallRequest.class);
+                case "POST /api/server/process/list" -> parseRequest(rawRequest, ServerProcessListRequest.class);
+                case "POST /api/server/process/create" -> parseRequest(rawRequest, ServerProcessCreateRequest.class);
+                case "POST /api/server/process/update" -> parseRequest(rawRequest, ServerProcessUpdateRequest.class);
+                case "POST /api/server/process/remove" -> parseRequest(rawRequest, ServerProcessRemoveRequest.class);
+                case "POST /api/server/process/operate" -> parseRequest(rawRequest, ServerProcessOperateRequest.class);
+                case "POST /api/server/metric/query" -> parseRequest(rawRequest, ServerMetricQueryRequest.class);
+                case "POST /api/server/task/list" -> parseRequest(rawRequest, ServerTaskListRequest.class);
+                case "POST /api/server/template/list" -> parseRequest(rawRequest, ServerTemplateListRequest.class);
+                case "POST /api/server/template/save" -> parseRequest(rawRequest, ServerTemplateSaveRequest.class);
+                case "POST /api/server/template/remove" -> parseRequest(rawRequest, ServerTemplateRemoveRequest.class);
+                case "POST /api/agent/register" -> parseRequest(rawRequest, AgentRegisterRequest.class);
+                case "POST /api/agent/heartbeat" -> parseAgentRequest(rawRequest, AgentHeartbeatRequest.class);
+                case "POST /api/agent/result" -> parseAgentRequest(rawRequest, AgentResultRequest.class);
                 default -> new RuntimeException("Unknown route: " + route);
             };
 
@@ -220,6 +257,13 @@ public class Application {
 
     private static ProjectListRequest parseProjectListRequest(FullHttpRequest rawRequest) {
         return parseRequest(rawRequest, ProjectListRequest.class);
+    }
+
+    /** Agent 请求要按请求体验签，请求体在进入控制器前已释放，这里先把它的 SHA-256 写进内部请求头（覆盖客户端传来的同名头） */
+    private static <T> T parseAgentRequest(FullHttpRequest rawRequest, Class<T> requestClass) {
+        String body = rawRequest.content().toString(StandardCharsets.UTF_8);
+        rawRequest.headers().set(AgentService.BODY_DIGEST_HEADER, AgentService.digest(body));
+        return parseRequest(rawRequest, requestClass);
     }
 
     private static <T> T parseRequest(FullHttpRequest rawRequest, Class<T> requestClass) {

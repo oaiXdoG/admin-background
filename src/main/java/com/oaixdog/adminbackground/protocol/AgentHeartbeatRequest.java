@@ -1,0 +1,22 @@
+package com.oaixdog.adminbackground.protocol;
+
+import com.zfoo.protocol.anno.Protocol;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.util.List;
+
+/** Agent 每 5 秒上报：服务器信息、主机指标和本机托管进程的状态 */
+@Getter
+@Setter
+@Protocol(id = 3117)
+public class AgentHeartbeatRequest {
+
+    private String hostname;
+    private String os;
+    private Integer cpuCores;
+    private Long memoryTotal;
+    private String agentVersion;
+    private AgentHostMetric host;
+    private List<AgentProcessMetric> processes;
+}

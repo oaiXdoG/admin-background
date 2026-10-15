@@ -53,7 +53,7 @@ public class LoginController {
     /**
      * 客户端 IP：直连时取连接地址；只有连接来自本机（同机 nginx 反向代理）时才信任 X-Real-IP，避免被伪造绕过 IP 限制
      */
-    private static String clientIp(Session session, HttpAttachment attachment) {
+    static String clientIp(Session session, HttpAttachment attachment) {
         String peer = session.getChannel().remoteAddress() instanceof InetSocketAddress address ? address.getAddress().getHostAddress() : "";
         String forwarded = attachment.getFullHttpRequest().headers().get("X-Real-IP");
         boolean fromLocalProxy = "127.0.0.1".equals(peer) || "0:0:0:0:0:0:0:1".equals(peer);

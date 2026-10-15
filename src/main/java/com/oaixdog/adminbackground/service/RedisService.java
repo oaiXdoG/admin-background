@@ -5,6 +5,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -77,5 +78,10 @@ public class RedisService {
 
     public void removeFromSet(String key, String value) {
         redisTemplate.opsForSet().remove(key, value);
+    }
+
+    public List<String> multiGet(List<String> keys) {
+        List<String> values = redisTemplate.opsForValue().multiGet(keys);
+        return values == null ? List.of() : values;
     }
 }

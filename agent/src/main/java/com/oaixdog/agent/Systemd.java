@@ -1,0 +1,164 @@
+package com.oaixdog.agent;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+/** 托管进程的 systemd 操作：服务名 adm-<进程名>，服务文件在 /etc/systemd/system 下，内容由后台生成 */
+final class Systemd {
+
+    private static final Path UNIT_DIR = Path.of("/etc/systemd/system");
+    private static final int START_WAIT_SECONDS = 180;
+    private static final int STABLE_SECONDS = 3;
+
+    private Systemd() {
+    }
+
+    record Result(boolean success, String output) {
+    }
+
+    static String unitName(String processName) {
+        return "adm-" + processName + ".service";
+    }
+
+    /** 服务文件内容不同时写入，返回是否写入 */
+    static boolean writeUnit(String processName, String content) throws IOException {
+        Path file = UNIT_DIR.resolve(unitName(processName));
+        if (Files.exists(file) && Files.readString(file, StandardCharsets.UTF_8).equals(content)) {
+            return false;
+        }
+        Files.writeString(file, content, StandardCharsets.UTF_8);
+        return true;
+    }
+
+    static void daemonReload() {
+        run(30, "systemctl", "daemon-reload");
+    }
+
+    /** ActiveState 和 MainPID */
+    static Map<String, String> show(String processName) {
+        Map<String, String> result = new HashMap<>();
+        String output = run(10, "systemctl", "show", unitName(processName), "-p", "ActiveState", "-p", "MainPID").output();
+        for (String line : output.split("\n")) {
+            int index = line.indexOf('=');
+            if (index > 0) {
+                result.put(line.substring(0, index), line.substring(index + 1).trim());
+            }
+        }
+        return result;
+    }
+
+    /** start 或 restart：启用开机自启后启动，最多等 180 秒（游戏服加载配置表可能较慢）确认运行中（配置了端口时同时确认端口可连），再观察 3 秒确认没有退出 */
+    static Result start(String processName, String action, int port) {
+        String unit = unitName(processName);
+        StringBuilder output = new StringBuilder();
+        output.append(run(30, "systemctl", "enable", unit).output());
+        Result command = run(120, "systemctl", action, unit);
+        output.append(command.output());
+        if (!command.success()) {
+            return new Result(false, output.append(diagnose(unit)).toString());
+        }
+        for (int second = 0; second < START_WAIT_SECONDS; second++) {
+            String state = activeState(unit);
+            if ("failed".equals(state) || "inactive".equals(state)) {
+                return new Result(false, output.append("进程启动后退出\n").append(diagnose(unit)).toString());
+            }
+            if ("active".equals(state) && (port <= 0 || portOpen(port))) {
+                sleep(STABLE_SECONDS);
+                boolean stable = "active".equals(activeState(unit));
+                String message = stable ? "已运行" + (port > 0 ? "，端口 " + port + " 可连接" : "") + "\n" : "进程启动后退出\n";
+                return new Result(stable, output.append(message).append(diagnose(unit)).toString());
+            }
+            sleep(1);
+        }
+        String reason = port > 0 ? START_WAIT_SECONDS + " 秒内端口 " + port + " 没有监听\n" : START_WAIT_SECONDS + " 秒内没有进入运行状态\n";
+        return new Result(false, output.append(reason).append(diagnose(unit)).toString());
+    }
+
+    /** 先发 SIGTERM，超过服务文件里的 TimeoutStopSec 再 SIGKILL */
+    static Result stop(String processName) {
+        String unit = unitName(processName);
+        Result command = run(120, "systemctl", "stop", unit);
+        String state = activeState(unit);
+        boolean stopped = "inactive".equals(state) || "failed".equals(state);
+        return new Result(command.success() && stopped, command.output() + (stopped ? "已停止\n" : "停止后状态：" + state + "\n") + diagnose(unit));
+    }
+
+    /** 停止、禁用并删除服务文件，不删除工作目录 */
+    static Result remove(String processName) throws IOException {
+        String unit = unitName(processName);
+        StringBuilder output = new StringBuilder();
+        output.append(run(120, "systemctl", "stop", unit).output());
+        output.append(run(30, "systemctl", "disable", unit).output());
+        Files.deleteIfExists(UNIT_DIR.resolve(unit));
+        daemonReload();
+        return new Result(true, output.append("已删除服务 ").append(unit).append('\n').toString());
+    }
+
+    private static String activeState(String unit) {
+        return run(10, "systemctl", "is-active", unit).output().trim();
+    }
+
+    private static String diagnose(String unit) {
+        return "\n" + run(10, "systemctl", "status", unit, "--no-pager", "-n", "0").output()
+                + "\n" + run(10, "journalctl", "-u", unit, "-n", "30", "--no-pager", "-o", "short-iso").output();
+    }
+
+    private static boolean portOpen(int port) {
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress("127.0.0.1", port), 1000);
+            return true;
+        } catch (IOException exception) {
+            return false;
+        }
+    }
+
+    /** 输出写到临时文件，避免输出多时管道写满卡住 */
+    static Result run(int timeoutSeconds, String... command) {
+        List<String> parts = new ArrayList<>(List.of(command));
+        Path outputFile = null;
+        try {
+            outputFile = Files.createTempFile("admin-agent-", ".out");
+            Process process = new ProcessBuilder(parts).redirectErrorStream(true).redirectOutput(outputFile.toFile()).start();
+            boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+            if (!finished) {
+                process.destroyForcibly();
+                return new Result(false, String.join(" ", parts) + " 超时\n");
+            }
+            return new Result(process.exitValue() == 0, new String(Files.readAllBytes(outputFile), StandardCharsets.UTF_8));
+        } catch (IOException exception) {
+            return new Result(false, String.join(" ", parts) + " 执行失败：" + exception.getMessage() + "\n");
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return new Result(false, "被中断\n");
+        } finally {
+            deleteQuietly(outputFile);
+        }
+    }
+
+    private static void deleteQuietly(Path file) {
+        try {
+            if (file != null) {
+                Files.deleteIfExists(file);
+            }
+        } catch (IOException exception) {
+            // 临时文件删除失败不影响结果
+        }
+    }
+
+    private static void sleep(int seconds) {
+        try {
+            Thread.sleep(seconds * 1000L);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}

@@ -40,6 +40,12 @@ public class ClickHouseClient {
         return (List<Map<String, Object>>) result.getOrDefault("data", List.of());
     }
 
+    /** 按 JSONEachRow 写入多行；settings 例如 async_insert（由 ClickHouse 攒批写入） */
+    public void insert(Connection connection, String table, List<Map<String, Object>> rows, Map<String, String> settings) {
+        String body = rows.stream().map(JsonUtils::object2String).collect(Collectors.joining("\n"));
+        send(connection, "INSERT INTO " + table + " FORMAT JSONEachRow\n" + body, Map.of(), settings);
+    }
+
     /** 执行不返回结果的语句，例如 ALTER TABLE */
     public void execute(Connection connection, String sql) {
         send(connection, sql, Map.of(), Map.of());

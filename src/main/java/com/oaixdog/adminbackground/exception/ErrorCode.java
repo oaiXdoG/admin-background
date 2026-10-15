@@ -130,7 +130,22 @@ public enum ErrorCode {
     DATA_TEMPLATE_NAME_EXISTS(100059, "查询模板名称已存在"),
     DATA_TEMPLATE_INVALID(100060, "查询模板配置不合法"),
     DATA_QUERY_PARAM_INVALID(100061, "查询参数不合法"),
-    LOG_SOURCE_FAILED(100064, "日志源连接失败");
+    LOG_SOURCE_FAILED(100064, "日志源连接失败"),
+    SERVER_NOT_FOUND(100065, "服务器不存在"),
+    SERVER_NAME_EXISTS(100066, "服务器名称已存在"),
+    SERVER_IN_USE(100067, "服务器下还有进程，不能删除"),
+    SERVER_OFFLINE(100068, "服务器离线，不能执行指令"),
+    PROCESS_NOT_FOUND(100069, "进程不存在"),
+    PROCESS_NAME_EXISTS(100070, "该服务器上已有同名进程"),
+    PROCESS_INVALID(100071, "进程配置不合法"),
+    PROCESS_BUSY(100072, "进程还有未完成的指令"),
+    PROCESS_NOT_STOPPED(100073, "进程未停止，不能删除"),
+    JVM_TEMPLATE_NOT_FOUND(100074, "JVM 参数模板不存在"),
+    JVM_TEMPLATE_NAME_EXISTS(100075, "JVM 参数模板名称已存在"),
+    JVM_TEMPLATE_IN_USE(100076, "JVM 参数模板正在被进程使用，不能删除"),
+    AGENT_TOKEN_INVALID(100077, "安装令牌无效或已过期，请在后台重新生成安装命令"),
+    AGENT_SIGNATURE_INVALID(100078, "Agent 签名无效"),
+    SERVER_METRIC_UNAVAILABLE(100079, "监控数据不可用，请在「系统设置 → 日志保留期」配置 ClickHouse 管理账号");
 
     private final int code;
     private final String message;

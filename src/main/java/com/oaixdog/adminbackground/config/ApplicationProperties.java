@@ -63,4 +63,8 @@ public class ApplicationProperties {
     @Value("${backup.pg-dump:pg_dump}")
     private String backupPgDump;
 
+    /** Agent 安装命令里的后台地址，例如 http://111.230.143.165，安装脚本和 Agent 包在它的 /agent/ 下 */
+    @Value("${agent.base-url:}")
+    private String agentBaseUrl;
+
 }
