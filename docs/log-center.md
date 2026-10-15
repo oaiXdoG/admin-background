@@ -77,6 +77,8 @@ ALTER TABLE <库>.event MODIFY TTL toDateTime(time) + INTERVAL 180 DAY DELETE WH
 
 字段说明的 `path` 是 data 里的路径（点号分隔，最多 8 段，不带 `data.` 前缀，不能重复）；`label` 可空，最长 64；`type` 为 `string`、`number`、`boolean`、`time`、`json`、`jsonText`。不合法返回 `100047`。
 
+字段说明可以带 `hidden: true`：该字段不在日志查询的列表里单独成列，字段条件、详情和导出里仍有（事件管理里的「列表显示」开关）。列表里值为数组的字段显示「N 项」、对象显示「{…} N 个字段」，悬停查看完整 JSON。
+
 | 接口 | 权限 | 请求 / 返回 |
 | --- | --- | --- |
 | `POST /api/log/event/dict/list` | 项目 `log_query` 或 `log_event` | `{ projectId }` → `{ list }`，每项 `{ event, label, description, fields }` |
