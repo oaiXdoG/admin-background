@@ -6,7 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Getter;
 import lombok.Setter;
 
-/** 服务器：Agent 接入的业务服务器；secret 为加密保存的 Agent 签名密钥，空表示还没有接入 */
+/** 服务器：Agent 接入的业务服务器；secret 为加密保存的 Agent 签名密钥，空表示还没有接入；ip 为后台看到的访问来源（出口 IP），privateIp 为 Agent 上报的本机内网 IP */
 @Getter
 @Setter
 @TableName("server_host")
@@ -21,6 +21,7 @@ public class ServerHost {
     private String secret;
     private String hostname;
     private String ip;
+    private String privateIp;
     private String os;
     private Integer cpuCores;
     private Long memoryTotal;

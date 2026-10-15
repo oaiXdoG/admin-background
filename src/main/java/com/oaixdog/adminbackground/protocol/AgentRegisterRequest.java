@@ -13,6 +13,8 @@ public class AgentRegisterRequest {
     private String token;
     private String hostname;
     private String os;
+    /** 本机网卡的内网 IPv4，多个用逗号分隔 */
+    private String privateIp;
     private Integer cpuCores;
     private Long memoryTotal;
     private String agentVersion;

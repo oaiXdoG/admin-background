@@ -10,10 +10,14 @@ import oshi.software.os.OSFileStore;
 import oshi.software.os.OSProcess;
 import oshi.software.os.OperatingSystem;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /** 用 OSHI 采集主机和进程指标；CPU 和网络取两次采集之间的变化，第一次采集为 0 */
 final class Metrics {
@@ -29,6 +33,7 @@ final class Metrics {
     private long packetsOut = -1;
     private long netTime;
     private final Map<Integer, OSProcess> processSnapshots = new HashMap<>();
+    private static final Pattern VIRTUAL = Pattern.compile("^(lo|docker|br-|veth|virbr|cni|flannel|cali|tun|tap)");
 
     String hostname() {
         return os.getNetworkParams().getHostName();
@@ -36,6 +41,17 @@ final class Metrics {
 
     String osName() {
         return os.toString();
+    }
+
+    /** 本机网卡的内网 IPv4（跳过回环和 Docker、bridge、veth 等虚拟网卡），多个用逗号分隔 */
+    String privateIps() {
+        List<String> result = new ArrayList<>();
+        for (NetworkIF network : hardware.getNetworkIFs()) {
+            if (!VIRTUAL.matcher(network.getName()).find()) {
+                result.addAll(Arrays.asList(network.getIPv4addr()));
+            }
+        }
+        return String.join(",", result);
     }
 
     int cpuCores() {

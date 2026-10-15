@@ -68,7 +68,7 @@ public class AgentService {
         String secret = HexFormat.of().formatHex(bytes);
         long now = System.currentTimeMillis();
         server.setSecret(secretCipher.encrypt(secret));
-        updateInfo(server, request.getHostname(), request.getOs(), request.getCpuCores(), request.getMemoryTotal(), request.getAgentVersion(), ip);
+        updateInfo(server, request.getHostname(), request.getOs(), request.getPrivateIp(), request.getCpuCores(), request.getMemoryTotal(), request.getAgentVersion(), ip);
         server.setRegisteredAt(now);
         server.setUpdatedAt(now);
         hostMapper.updateById(server);
@@ -103,7 +103,7 @@ public class AgentService {
 
     /** 保存指标，返回本服务器的进程定义和本次领取的指令 */
     public Map<String, Object> heartbeat(ServerHost server, AgentHeartbeatRequest request, String ip) {
-        if (updateInfo(server, request.getHostname(), request.getOs(), request.getCpuCores(), request.getMemoryTotal(), request.getAgentVersion(), ip)) {
+        if (updateInfo(server, request.getHostname(), request.getOs(), request.getPrivateIp(), request.getCpuCores(), request.getMemoryTotal(), request.getAgentVersion(), ip)) {
             server.setUpdatedAt(System.currentTimeMillis());
             hostMapper.updateById(server);
         }
@@ -126,18 +126,21 @@ public class AgentService {
     }
 
     /** 服务器信息有变化时更新，返回是否有变化 */
-    private static boolean updateInfo(ServerHost server, String hostname, String os, Integer cpuCores, Long memoryTotal, String agentVersion, String ip) {
+    private static boolean updateInfo(ServerHost server, String hostname, String os, String privateIp, Integer cpuCores, Long memoryTotal, String agentVersion, String ip) {
         String newHostname = truncate(hostname);
         String newOs = truncate(os);
+        String newPrivateIp = truncate(privateIp);
         int newCpuCores = cpuCores == null ? 0 : cpuCores;
         long newMemoryTotal = memoryTotal == null ? 0L : memoryTotal;
         String newAgentVersion = truncate(agentVersion).length() > 32 ? truncate(agentVersion).substring(0, 32) : truncate(agentVersion);
         String newIp = ip == null ? "" : ip.length() > 64 ? ip.substring(0, 64) : ip;
         boolean changed = !Objects.equals(server.getHostname(), newHostname) || !Objects.equals(server.getOs(), newOs)
                 || !Objects.equals(server.getCpuCores(), newCpuCores) || !Objects.equals(server.getMemoryTotal(), newMemoryTotal)
-                || !Objects.equals(server.getAgentVersion(), newAgentVersion) || !Objects.equals(server.getIp(), newIp);
+                || !Objects.equals(server.getAgentVersion(), newAgentVersion) || !Objects.equals(server.getIp(), newIp)
+                || !Objects.equals(server.getPrivateIp(), newPrivateIp);
         server.setHostname(newHostname);
         server.setOs(newOs);
+        server.setPrivateIp(newPrivateIp);
         server.setCpuCores(newCpuCores);
         server.setMemoryTotal(newMemoryTotal);
         server.setAgentVersion(newAgentVersion);

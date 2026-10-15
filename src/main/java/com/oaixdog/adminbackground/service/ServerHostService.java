@@ -64,6 +64,7 @@ public class ServerHostService {
         server.setSecret("");
         server.setHostname("");
         server.setIp("");
+        server.setPrivateIp("");
         server.setOs("");
         server.setCpuCores(0);
         server.setMemoryTotal(0L);
@@ -184,6 +185,7 @@ public class ServerHostService {
         result.put("status", status(server, online));
         result.put("hostname", server.getHostname());
         result.put("ip", server.getIp());
+        result.put("privateIp", server.getPrivateIp());
         result.put("os", server.getOs());
         result.put("cpuCores", server.getCpuCores());
         result.put("memoryTotal", server.getMemoryTotal());

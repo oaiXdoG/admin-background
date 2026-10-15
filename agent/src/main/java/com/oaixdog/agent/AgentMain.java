@@ -38,7 +38,7 @@ import java.util.concurrent.TimeUnit;
  */
 public final class AgentMain {
 
-    static final String VERSION = "0.1.3";
+    static final String VERSION = "0.1.4";
     private static final int HEARTBEAT_SECONDS = 5;
     /** 注册失败（令牌无效）时退出码，安装脚本生成的服务配置了不自动重启 */
     private static final int EXIT_REGISTER_FAILED = 2;
@@ -88,6 +88,7 @@ public final class AgentMain {
         body.put("token", config.getProperty("token", ""));
         body.put("hostname", metrics.hostname());
         body.put("os", metrics.osName());
+        body.put("privateIp", metrics.privateIps());
         body.put("cpuCores", metrics.cpuCores());
         body.put("memoryTotal", metrics.memoryTotal());
         body.put("agentVersion", VERSION);
@@ -109,6 +110,7 @@ public final class AgentMain {
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("hostname", metrics.hostname());
             body.put("os", metrics.osName());
+            body.put("privateIp", metrics.privateIps());
             body.put("cpuCores", metrics.cpuCores());
             body.put("memoryTotal", metrics.memoryTotal());
             body.put("agentVersion", VERSION);

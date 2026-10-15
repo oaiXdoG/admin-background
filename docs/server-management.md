@@ -74,6 +74,7 @@ WantedBy=multi-user.target
 
 Agent 每 5 秒随心跳上报：
 
+- 服务器信息：主机名、系统、CPU 核数、内存总量、内网 IP（本机网卡的 IPv4，跳过回环和 Docker、bridge、veth 等虚拟网卡，多个用逗号分隔）；公网 IP 为后台看到的访问来源（经 nginx 时取 X-Real-IP），多台机器共用出口时相同。
 - 主机：CPU 使用率、1 分钟负载、内存已用 / 总量、根分区已用 / 总量、网络收发速率、每秒收发包数、已建立的 TCP 连接数、开机时长。
 - 进程：systemd 状态、PID、CPU 使用率（占整机）、常驻内存、线程数、已建立的 TCP 连接数、启动时间、启动时的配置版本。
 
@@ -120,8 +121,8 @@ Agent 每 5 秒随心跳上报：
 
 | 接口 | 请求 → 返回 |
 | --- | --- |
-| `POST /api/agent/register` | `{ token, hostname, os, cpuCores, memoryTotal, agentVersion }` → `{ serverId, secret }` |
-| `POST /api/agent/heartbeat` | `{ hostname, os, cpuCores, memoryTotal, agentVersion, host, processes }` → `{ processes, tasks }`：`processes` 为本服务器全部进程定义（含合并后的 JVM 参数和 `configVersion`），`tasks` 为本次领取的指令 `{ taskId, processId, processName, action }` |
+| `POST /api/agent/register` | `{ token, hostname, os, privateIp, cpuCores, memoryTotal, agentVersion }` → `{ serverId, secret }` |
+| `POST /api/agent/heartbeat` | `{ hostname, os, privateIp, cpuCores, memoryTotal, agentVersion, host, processes }` → `{ processes, tasks }`：`processes` 为本服务器全部进程定义（含合并后的 JVM 参数和 `configVersion`），`tasks` 为本次领取的指令 `{ taskId, processId, processName, action }` |
 | `POST /api/agent/result` | `{ taskId, success, output }` → `null` |
 
 `host`：`{ cpu, load1, memoryUsed, memoryTotal, diskUsed, diskTotal, netIn, netOut, packetsIn, packetsOut, tcp, uptime }`（百分比 0～100，字节，字节/秒，个/秒，个，秒）。`processes[]`：`{ processId, state, pid, cpu, memory, threads, tcp, startedAt, configVersion }`。
