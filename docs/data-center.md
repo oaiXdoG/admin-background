@@ -127,9 +127,9 @@ if (!MessageDigest.isEqual(expected.getBytes(), request.getHeader("X-Admin-Signa
 | `POST /api/data/source/create` | `data_source:create` | `{ projectId, name, type, network, url, secret, timeoutMs, remark }`，type 为 `http`（默认）或 `zone`，network 为 `inner`（默认）或 `public`，`http` 时 url 必填；密钥必填 |
 | `POST /api/data/source/update` | `data_source:update` | 另加 `sourceId`；`secret` 留空沿用 |
 | `POST /api/data/source/remove` | `data_source:remove` | `{ projectId, sourceId }`；被模板使用时返回 `100056` |
-| `POST /api/data/source/test` | `data_source:create` 或 `:update` | `{ projectId, sourceId?, type, network, url, secret, timeoutMs }`，调用 `/admin/queries`（`zone` 类型调用第一个可用的区），返回 `{ queryCount, zones }`，`zones` 为发现的区 `[{ zoneId, url, status }]`（`http` 类型为空列表）；`sourceId` 有值且密钥留空时用已保存的密钥 |
+| `POST /api/data/source/test` | `data_source:create` 或 `:update` | `{ projectId, sourceId?, type, network, url, secret, timeoutMs }`，调用 `/admin/queries`（`zone` 类型调用第一个可用的区），返回 `{ queryCount, zones }`，`zones` 为发现的区 `[{ zoneId, url }]`（`http` 类型为空列表）；`sourceId` 有值且密钥留空时用已保存的密钥 |
 | `POST /api/data/source/queries` | `data_template` | `{ projectId, sourceId }` → `{ queries }`，原样返回业务服务器的查询清单（`zone` 类型取第一个可用的区） |
-| `POST /api/data/source/zones` | `data_query` 或 `data_template` | `{ projectId, sourceId }` → `{ list }`，`zone` 类型数据源当前可查询的区 `[{ zoneId, url, status }]`，按区 ID 排序；`http` 类型返回空列表 |
+| `POST /api/data/source/zones` | `data_query` 或 `data_template` | `{ projectId, sourceId }` → `{ list }`，`zone` 类型数据源当前可查询的区 `[{ zoneId, url }]`，按区 ID 排序；`http` 类型返回空列表 |
 
 ### 查询模板
 

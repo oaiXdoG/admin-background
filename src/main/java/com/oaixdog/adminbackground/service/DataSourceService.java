@@ -175,7 +175,6 @@ public class DataSourceService {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("zoneId", zone.zoneId());
         result.put("url", zone.url());
-        result.put("status", zone.status());
         return result;
     }
 

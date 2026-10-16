@@ -34,8 +34,8 @@ public class ZoneDiscoveryService {
 
     private CuratorFramework curator;
 
-    /** 区 ID、查询接口地址、节点状态（online / maintenance） */
-    public record Zone(int zoneId, String url, String status) {
+    /** 区 ID、查询接口地址 */
+    public record Zone(int zoneId, String url) {
     }
 
     /** 当前可查询的区，按区 ID 排序；节点不存在时返回空列表 */
@@ -53,7 +53,7 @@ public class ZoneDiscoveryService {
                 if (host == null || StringUtils.isBlank(String.valueOf(host)) || port <= 0 || !child.matches("\\d{1,9}")) {
                     continue;
                 }
-                zones.add(new Zone(Integer.parseInt(child), "http://" + host + ":" + port, String.valueOf(node.getOrDefault("status", ""))));
+                zones.add(new Zone(Integer.parseInt(child), "http://" + host + ":" + port));
             }
         } catch (KeeperException.NoNodeException exception) {
             return List.of();
