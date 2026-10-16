@@ -55,14 +55,14 @@ public class DataSourceService {
                 .stream().map(source -> DataSourceResponse.valueOf(source, templateCount(source.getId()))).toList();
     }
 
-    public DataSourceResponse create(String authorization, Long projectId, String name, String type, String url, String secret, Integer timeoutMs, String remark) {
+    public DataSourceResponse create(String authorization, Long projectId, String name, String type, String network, String url, String secret, Integer timeoutMs, String remark) {
         PermissionService.ProjectAccess access = permissionService.requireProjectMenu(authorization, projectId, MENU + ":create");
         if (StringUtils.isBlank(secret)) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
         }
         DataSource source = new DataSource();
         source.setProjectId(access.projectId());
-        fill(source, name, type, url, secret, timeoutMs, remark);
+        fill(source, name, type, network, url, secret, timeoutMs, remark);
         long now = System.currentTimeMillis();
         source.setCreatedAt(now);
         source.setUpdatedAt(now);
@@ -76,10 +76,10 @@ public class DataSourceService {
     }
 
     /** 密钥留空表示沿用已保存的密钥 */
-    public DataSourceResponse update(String authorization, Long projectId, Long sourceId, String name, String type, String url, String secret, Integer timeoutMs, String remark) {
+    public DataSourceResponse update(String authorization, Long projectId, Long sourceId, String name, String type, String network, String url, String secret, Integer timeoutMs, String remark) {
         PermissionService.ProjectAccess access = permissionService.requireProjectMenu(authorization, projectId, MENU + ":update");
         DataSource source = requireSource(access.projectId(), sourceId);
-        fill(source, name, type, url, secret, timeoutMs, remark);
+        fill(source, name, type, network, url, secret, timeoutMs, remark);
         source.setUpdatedAt(System.currentTimeMillis());
         requireUniqueName(source);
         try {
@@ -100,7 +100,7 @@ public class DataSourceService {
     }
 
     /** 用表单里的值调用查询清单接口（按区自动发现时调用第一个可用的区）；成功返回查询数量和发现的区，失败抛出带原因的业务错误 */
-    public Map<String, Object> test(String authorization, Long projectId, Long sourceId, String type, String url, String secret, Integer timeoutMs) {
+    public Map<String, Object> test(String authorization, Long projectId, Long sourceId, String type, String network, String url, String secret, Integer timeoutMs) {
         PermissionService.ProjectAccess access = permissionService.requireAnyProjectMenu(authorization, projectId, MENU + ":create", MENU + ":update");
         String plainSecret = secret;
         if (StringUtils.isBlank(secret)) {
@@ -112,7 +112,7 @@ public class DataSourceService {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
         }
         String appKey = appKey(access.projectId());
-        List<ZoneDiscoveryService.Zone> zones = zone ? zoneDiscoveryService.zones(appKey) : List.of();
+        List<ZoneDiscoveryService.Zone> zones = zone ? zoneDiscoveryService.zones(appKey, DataSource.NETWORK_PUBLIC.equals(network)) : List.of();
         if (zone && zones.isEmpty()) {
             throw new BusinessException(ErrorCode.ZONE_NOT_AVAILABLE);
         }
@@ -140,13 +140,13 @@ public class DataSourceService {
         if (!DataSource.TYPE_ZONE.equals(source.getType())) {
             return List.of();
         }
-        return zoneDiscoveryService.zones(appKey(access.projectId())).stream().map(DataSourceService::zoneResponse).toList();
+        return zones(access, source).stream().map(DataSourceService::zoneResponse).toList();
     }
 
     /** 按区自动发现：区 ID → 调用目标；请求的区不在线（不在当前发现的区里）时目标为 null */
     public Map<Integer, BusinessClient.Target> zoneTargets(PermissionService.ProjectAccess access, DataSource source, List<Long> zoneIds) {
         Map<Integer, String> urls = new LinkedHashMap<>();
-        for (ZoneDiscoveryService.Zone zone : zoneDiscoveryService.zones(appKey(access.projectId()))) {
+        for (ZoneDiscoveryService.Zone zone : zones(access, source)) {
             urls.put(zone.zoneId(), zone.url());
         }
         BusinessClient.Target base = target(access, source);
@@ -159,12 +159,16 @@ public class DataSourceService {
     }
 
     private BusinessClient.Target firstZoneTarget(PermissionService.ProjectAccess access, DataSource source) {
-        List<ZoneDiscoveryService.Zone> zones = zoneDiscoveryService.zones(appKey(access.projectId()));
+        List<ZoneDiscoveryService.Zone> zones = zones(access, source);
         if (zones.isEmpty()) {
             throw new BusinessException(ErrorCode.ZONE_NOT_AVAILABLE);
         }
         BusinessClient.Target base = target(access, source);
         return new BusinessClient.Target(zones.getFirst().url(), base.secret(), base.timeoutMs(), base.appKey(), base.operator());
+    }
+
+    private List<ZoneDiscoveryService.Zone> zones(PermissionService.ProjectAccess access, DataSource source) {
+        return zoneDiscoveryService.zones(appKey(access.projectId()), DataSource.NETWORK_PUBLIC.equals(source.getNetwork()));
     }
 
     private static Map<String, Object> zoneResponse(ZoneDiscoveryService.Zone zone) {
@@ -192,13 +196,14 @@ public class DataSourceService {
         return source;
     }
 
-    private void fill(DataSource source, String name, String type, String url, String secret, Integer timeoutMs, String remark) {
+    private void fill(DataSource source, String name, String type, String network, String url, String secret, Integer timeoutMs, String remark) {
         String sourceType = StringUtils.isBlank(type) ? DataSource.TYPE_HTTP : type.trim();
         boolean zone = DataSource.TYPE_ZONE.equals(sourceType);
         String sourceName = name == null ? "" : name.trim();
         String sourceUrl = zone || url == null ? "" : url.trim();
         String sourceRemark = remark == null ? "" : remark.trim();
-        if (!DataSource.TYPE_HTTP.equals(sourceType) && !zone) {
+        String sourceNetwork = StringUtils.isBlank(network) ? DataSource.NETWORK_INNER : network.trim();
+        if (!DataSource.TYPE_HTTP.equals(sourceType) && !zone || !DataSource.NETWORK_INNER.equals(sourceNetwork) && !DataSource.NETWORK_PUBLIC.equals(sourceNetwork)) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
         }
         if (sourceName.isEmpty() || sourceName.length() > NAME_MAX_LENGTH || (!zone && !validUrl(sourceUrl)) || sourceRemark.length() > REMARK_MAX_LENGTH
@@ -207,6 +212,7 @@ public class DataSourceService {
         }
         source.setName(sourceName);
         source.setType(sourceType);
+        source.setNetwork(sourceNetwork);
         source.setUrl(sourceUrl.replaceAll("/+$", ""));
         source.setTimeoutMs(timeout(timeoutMs));
         source.setRemark(sourceRemark);

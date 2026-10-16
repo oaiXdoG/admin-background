@@ -49,13 +49,13 @@ public class DataCenterController {
     @PacketReceiver
     public void atDataSourceCreateRequest(Session session, DataSourceCreateRequest request, HttpAttachment attachment) {
         handle(session, attachment, request, () -> dataSourceService.create(auth(attachment), request.getProjectId(), request.getName(),
-                request.getType(), request.getUrl(), request.getSecret(), request.getTimeoutMs(), request.getRemark()));
+                request.getType(), request.getNetwork(), request.getUrl(), request.getSecret(), request.getTimeoutMs(), request.getRemark()));
     }
 
     @PacketReceiver
     public void atDataSourceUpdateRequest(Session session, DataSourceUpdateRequest request, HttpAttachment attachment) {
         handle(session, attachment, request, () -> dataSourceService.update(auth(attachment), request.getProjectId(), request.getSourceId(),
-                request.getName(), request.getType(), request.getUrl(), request.getSecret(), request.getTimeoutMs(), request.getRemark()));
+                request.getName(), request.getType(), request.getNetwork(), request.getUrl(), request.getSecret(), request.getTimeoutMs(), request.getRemark()));
     }
 
     @PacketReceiver
@@ -69,7 +69,7 @@ public class DataCenterController {
     @PacketReceiver
     public void atDataSourceTestRequest(Session session, DataSourceTestRequest request, HttpAttachment attachment) {
         handle(session, attachment, request, () -> dataSourceService.test(auth(attachment), request.getProjectId(), request.getSourceId(),
-                request.getType(), request.getUrl(), request.getSecret(), request.getTimeoutMs()));
+                request.getType(), request.getNetwork(), request.getUrl(), request.getSecret(), request.getTimeoutMs()));
     }
 
     @PacketReceiver

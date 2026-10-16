@@ -143,6 +143,7 @@ create table data_source (
     project_id bigint not null,
     name varchar(64) not null,
     type varchar(16) not null default 'http',
+    network varchar(16) not null default 'inner',
     url varchar(256) not null,
     secret text not null,
     timeout_ms integer not null default 10000,

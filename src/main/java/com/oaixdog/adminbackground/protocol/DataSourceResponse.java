@@ -12,6 +12,7 @@ public class DataSourceResponse {
     private long id;
     private String name;
     private String type;
+    private String network;
     private String url;
     private boolean secretSet;
     private int timeoutMs;
@@ -25,6 +26,7 @@ public class DataSourceResponse {
         response.id = source.getId();
         response.name = source.getName();
         response.type = source.getType();
+        response.network = source.getNetwork();
         response.url = source.getUrl();
         response.secretSet = source.getSecret() != null && !source.getSecret().isBlank();
         response.timeoutMs = source.getTimeoutMs();

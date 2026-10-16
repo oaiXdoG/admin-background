@@ -13,6 +13,8 @@ public class DataSourceTestRequest {
     private Long projectId;
     private Long sourceId;
     private String type;
+    /** 按区自动发现的连接方式：inner（默认）/ public */
+    private String network;
     private String url;
     private String secret;
     private Integer timeoutMs;

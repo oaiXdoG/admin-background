@@ -22,7 +22,7 @@ import java.util.Map;
 
 /**
  * 按区自动发现：读取 ZooKeeper 上本项目的游戏服节点 /danmu/<App Key>/logic/<区ID>（规则见 danmu-login docs/service-discovery.md），
- * 每个区的查询接口为节点里的 innerHost:innerPort，innerPort 为 0 的区不提供查询接口。第一次使用时才连接 ZooKeeper。
+ * 每个区的查询接口为节点里的 innerHost:innerPort（连接方式为公网时用节点的 host，即公网地址），innerPort 为 0 的区不提供查询接口。第一次使用时才连接 ZooKeeper。
  */
 @Service
 @RequiredArgsConstructor
@@ -40,7 +40,7 @@ public class ZoneDiscoveryService {
 
     /** 当前可查询的区，按区 ID 排序；节点不存在时返回空列表 */
     @SuppressWarnings("unchecked")
-    public List<Zone> zones(String appKey) {
+    public List<Zone> zones(String appKey, boolean publicNetwork) {
         CuratorFramework client = client();
         String path = "/danmu/" + appKey + "/logic";
         List<Zone> zones = new ArrayList<>();
@@ -48,7 +48,7 @@ public class ZoneDiscoveryService {
             for (String child : client.getChildren().forPath(path)) {
                 byte[] bytes = client.getData().forPath(path + "/" + child);
                 Map<String, Object> node = JsonUtils.string2Object(new String(bytes, StandardCharsets.UTF_8), LinkedHashMap.class);
-                Object host = node.get("innerHost");
+                Object host = node.get(publicNetwork ? "host" : "innerHost");
                 int port = node.get("innerPort") instanceof Number number ? number.intValue() : 0;
                 if (host == null || StringUtils.isBlank(String.valueOf(host)) || port <= 0 || !child.matches("\\d{1,9}")) {
                     continue;
