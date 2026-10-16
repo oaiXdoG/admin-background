@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -56,10 +57,10 @@ public class DataTemplateService {
     /** 模板管理页面和数据查询页面都要读取模板，有其中一个页面即可 */
     public List<DataTemplateResponse> list(String authorization, Long projectId) {
         PermissionService.ProjectAccess access = permissionService.requireAnyProjectMenu(authorization, projectId, MENU, QUERY_MENU);
-        Map<Long, String> sourceNames = dataSourceMapper.selectList(Wrappers.<DataSource>lambdaQuery().eq(DataSource::getProjectId, access.projectId()))
-                .stream().collect(Collectors.toMap(DataSource::getId, DataSource::getName));
+        Map<Long, DataSource> sources = dataSourceMapper.selectList(Wrappers.<DataSource>lambdaQuery().eq(DataSource::getProjectId, access.projectId()))
+                .stream().collect(Collectors.toMap(DataSource::getId, Function.identity()));
         return dataTemplateMapper.selectList(Wrappers.<DataTemplate>lambdaQuery().eq(DataTemplate::getProjectId, access.projectId()).orderByAsc(DataTemplate::getId))
-                .stream().map(template -> DataTemplateResponse.valueOf(template, sourceNames.get(template.getSourceId()))).toList();
+                .stream().map(template -> DataTemplateResponse.valueOf(template, sources.get(template.getSourceId()))).toList();
     }
 
     public DataTemplateResponse create(String authorization, Long projectId, Long sourceId, String name, String query, String params, String fields) {
@@ -76,7 +77,7 @@ public class DataTemplateService {
         } catch (DuplicateKeyException exception) {
             throw new BusinessException(ErrorCode.DATA_TEMPLATE_NAME_EXISTS);
         }
-        return DataTemplateResponse.valueOf(template, source.getName());
+        return DataTemplateResponse.valueOf(template, source);
     }
 
     public DataTemplateResponse update(String authorization, Long projectId, Long templateId, Long sourceId, String name, String query, String params, String fields) {
@@ -90,7 +91,7 @@ public class DataTemplateService {
         } catch (DuplicateKeyException exception) {
             throw new BusinessException(ErrorCode.DATA_TEMPLATE_NAME_EXISTS);
         }
-        return DataTemplateResponse.valueOf(template, source.getName());
+        return DataTemplateResponse.valueOf(template, source);
     }
 
     public void remove(String authorization, Long projectId, Long templateId) {

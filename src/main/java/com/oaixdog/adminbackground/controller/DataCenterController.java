@@ -8,6 +8,7 @@ import com.oaixdog.adminbackground.protocol.DataQueryRequest;
 import com.oaixdog.adminbackground.protocol.DataSourceCreateRequest;
 import com.oaixdog.adminbackground.protocol.DataSourceListRequest;
 import com.oaixdog.adminbackground.protocol.DataSourceQueriesRequest;
+import com.oaixdog.adminbackground.protocol.DataSourceZonesRequest;
 import com.oaixdog.adminbackground.protocol.DataSourceRemoveRequest;
 import com.oaixdog.adminbackground.protocol.DataSourceTestRequest;
 import com.oaixdog.adminbackground.protocol.DataSourceUpdateRequest;
@@ -48,13 +49,13 @@ public class DataCenterController {
     @PacketReceiver
     public void atDataSourceCreateRequest(Session session, DataSourceCreateRequest request, HttpAttachment attachment) {
         handle(session, attachment, request, () -> dataSourceService.create(auth(attachment), request.getProjectId(), request.getName(),
-                request.getUrl(), request.getSecret(), request.getTimeoutMs(), request.getRemark()));
+                request.getType(), request.getUrl(), request.getSecret(), request.getTimeoutMs(), request.getRemark()));
     }
 
     @PacketReceiver
     public void atDataSourceUpdateRequest(Session session, DataSourceUpdateRequest request, HttpAttachment attachment) {
         handle(session, attachment, request, () -> dataSourceService.update(auth(attachment), request.getProjectId(), request.getSourceId(),
-                request.getName(), request.getUrl(), request.getSecret(), request.getTimeoutMs(), request.getRemark()));
+                request.getName(), request.getType(), request.getUrl(), request.getSecret(), request.getTimeoutMs(), request.getRemark()));
     }
 
     @PacketReceiver
@@ -68,12 +69,17 @@ public class DataCenterController {
     @PacketReceiver
     public void atDataSourceTestRequest(Session session, DataSourceTestRequest request, HttpAttachment attachment) {
         handle(session, attachment, request, () -> dataSourceService.test(auth(attachment), request.getProjectId(), request.getSourceId(),
-                request.getUrl(), request.getSecret(), request.getTimeoutMs()));
+                request.getType(), request.getUrl(), request.getSecret(), request.getTimeoutMs()));
     }
 
     @PacketReceiver
     public void atDataSourceQueriesRequest(Session session, DataSourceQueriesRequest request, HttpAttachment attachment) {
         handle(session, attachment, request, () -> dataSourceService.queries(auth(attachment), request.getProjectId(), request.getSourceId()));
+    }
+
+    @PacketReceiver
+    public void atDataSourceZonesRequest(Session session, DataSourceZonesRequest request, HttpAttachment attachment) {
+        handle(session, attachment, request, () -> Map.of("list", dataSourceService.zones(auth(attachment), request.getProjectId(), request.getSourceId())));
     }
 
     @PacketReceiver
@@ -104,13 +110,13 @@ public class DataCenterController {
     @PacketReceiver
     public void atDataQueryRequest(Session session, DataQueryRequest request, HttpAttachment attachment) {
         handle(session, attachment, request, () -> dataQueryService.query(auth(attachment), request.getProjectId(), request.getTemplateId(),
-                request.getParams(), request.getPage(), request.getPageSize()));
+                request.getZoneIds(), request.getParams(), request.getPage(), request.getPageSize()));
     }
 
     @PacketReceiver
     public void atDataQueryExportRequest(Session session, DataQueryExportRequest request, HttpAttachment attachment) {
         handle(session, attachment, request, () -> dataQueryService.export(auth(attachment), request.getProjectId(), request.getTemplateId(),
-                request.getParams()));
+                request.getZoneIds(), request.getParams()));
     }
 
     private void handle(Session session, HttpAttachment attachment, Object request, Handler handler) {

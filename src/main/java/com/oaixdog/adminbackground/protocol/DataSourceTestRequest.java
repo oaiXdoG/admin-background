@@ -12,6 +12,7 @@ public class DataSourceTestRequest {
 
     private Long projectId;
     private Long sourceId;
+    private String type;
     private String url;
     private String secret;
     private Integer timeoutMs;

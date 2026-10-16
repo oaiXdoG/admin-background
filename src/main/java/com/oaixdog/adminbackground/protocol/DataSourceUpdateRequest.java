@@ -13,6 +13,7 @@ public class DataSourceUpdateRequest {
     private Long projectId;
     private Long sourceId;
     private String name;
+    private String type;
     private String url;
     private String secret;
     private Integer timeoutMs;

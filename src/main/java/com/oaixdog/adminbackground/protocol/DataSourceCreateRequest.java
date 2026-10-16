@@ -11,6 +11,7 @@ public class DataSourceCreateRequest {
 
     private Long projectId;
     private String name;
+    private String type;
     private String url;
     private String secret;
     private Integer timeoutMs;

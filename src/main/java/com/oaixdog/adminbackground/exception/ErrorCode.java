@@ -151,7 +151,9 @@ public enum ErrorCode {
     PROCESS_TYPE_IN_USE(100082, "进程类型正在被进程使用，不能删除"),
     PACKAGE_UPLOAD_INVALID(100083, "发布包上传无效或已过期，请重新上传"),
     PACKAGE_INVALID(100084, "发布包不是有效的 zip 压缩包或为空"),
-    FILE_OP_NOT_FOUND(100085, "文件操作不存在或已过期");
+    FILE_OP_NOT_FOUND(100085, "文件操作不存在或已过期"),
+    ZOOKEEPER_NOT_CONFIGURED(100086, "后台没有配置 ZooKeeper（zookeeper.address），不能使用按区自动发现"),
+    ZONE_NOT_AVAILABLE(100087, "没有可用的区服（游戏服都不在线，或没有提供查询接口）");
 
     private final int code;
     private final String message;

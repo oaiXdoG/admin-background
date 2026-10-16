@@ -13,6 +13,8 @@ import lombok.Setter;
 public class DataSource {
 
     public static final String TYPE_HTTP = "http";
+    /** 按区自动发现：地址从 ZooKeeper 的游戏服节点读取，url 为空 */
+    public static final String TYPE_ZONE = "zone";
 
     @TableId(type = IdType.AUTO)
     private Long id;

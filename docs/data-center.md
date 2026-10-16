@@ -10,11 +10,11 @@ admin 不直连业务数据库，而是调用业务服务器按下面规范提�
 | --- | --- | --- |
 | 数据查询 | `data_query` | 选模板，按模板定义的参数填写条件，结果按模板的结果字段成列；点「详情」看完整返回（点表格其他位置不会打开，方便选中复制）；导出按钮 `data_query:export` |
 | 查询模板 | `data_template` | 管理员选数据源和查询名，定义参数和结果字段；可从数据源的查询清单自动带出。按钮 `:create`、`:update`、`:remove` |
-| 数据源 | `data_source` | 每个项目配置自己的业务服务器接口地址和签名密钥，可测试连接。按钮 `:create`、`:update`、`:remove` |
+| 数据源 | `data_source` | 每个项目配置业务服务器的查询接口：固定地址，或按区自动发现（多区游戏服只配一次）；签名密钥；可测试连接。按钮 `:create`、`:update`、`:remove` |
 
 ## 二、业务服务器接口规范
 
-业务服务器提供两个 `POST` 接口，地址为数据源里配置的「接口地址」加路径：
+业务服务器提供两个 `POST` 接口，地址为数据源里配置的「接口地址」加路径（按区自动发现时为各区在 ZooKeeper 节点里的 `innerHost:innerPort`）：
 
 | 路径 | 用途 |
 | --- | --- |
@@ -114,16 +114,22 @@ if (!MessageDigest.isEqual(expected.getBytes(), request.getHeader("X-Admin-Signa
 
 ### 数据源
 
-表 `data_source`：`name`（项目内唯一）、`type`（目前只有 `http`）、`url`、`secret`（用 `security.secret-key` AES-GCM 加密保存）、`timeout_ms`（1～60 秒）、`remark`。
+表 `data_source`：`name`（项目内唯一）、`type`、`url`、`secret`（用 `security.secret-key` AES-GCM 加密保存）、`timeout_ms`（1～60 秒）、`remark`。
+
+`type` 两种：
+
+- `http` 固定地址：`url` 为业务服务器接口地址（登录服、回调服等不分区的服务）。
+- `zone` 按区自动发现（多区游戏服）：`url` 为空。后台从 ZooKeeper 读取本项目的游戏服节点 `/danmu/<项目 App Key>/logic/<区ID>`（规则见 danmu-login `docs/service-discovery.md`），每个区的接口地址为 `http://<节点 innerHost>:<节点 innerPort>`，`innerPort` 为 0 的区不提供查询接口、不参与查询。所有区共用一个签名密钥和同一套查询模板。只能查在线（节点存在）的区。后台配置 `zookeeper.address`（例如 `127.0.0.1:2181`），没有配置时不能使用这个类型。
 
 | 接口 | 权限 | 说明 |
 | --- | --- | --- |
 | `POST /api/data/source/list` | `data_source` 或 `data_template` | `{ projectId }` → `{ list }`，不返回密钥，只返回 `secretSet` 和使用中的模板数 `templateCount` |
-| `POST /api/data/source/create` | `data_source:create` | `{ projectId, name, url, secret, timeoutMs, remark }`，密钥必填 |
+| `POST /api/data/source/create` | `data_source:create` | `{ projectId, name, type, url, secret, timeoutMs, remark }`，type 为 `http`（默认）或 `zone`，`http` 时 url 必填；密钥必填 |
 | `POST /api/data/source/update` | `data_source:update` | 另加 `sourceId`；`secret` 留空沿用 |
 | `POST /api/data/source/remove` | `data_source:remove` | `{ projectId, sourceId }`；被模板使用时返回 `100056` |
-| `POST /api/data/source/test` | `data_source:create` 或 `:update` | `{ projectId, sourceId?, url, secret, timeoutMs }`，调用 `/admin/queries`，返回 `{ queryCount }`；`sourceId` 有值且密钥留空时用已保存的密钥 |
-| `POST /api/data/source/queries` | `data_template` | `{ projectId, sourceId }` → `{ queries }`，原样返回业务服务器的查询清单 |
+| `POST /api/data/source/test` | `data_source:create` 或 `:update` | `{ projectId, sourceId?, type, url, secret, timeoutMs }`，调用 `/admin/queries`（`zone` 类型调用第一个可用的区），返回 `{ queryCount, zones }`，`zones` 为发现的区 `[{ zoneId, url, status }]`（`http` 类型为空列表）；`sourceId` 有值且密钥留空时用已保存的密钥 |
+| `POST /api/data/source/queries` | `data_template` | `{ projectId, sourceId }` → `{ queries }`，原样返回业务服务器的查询清单（`zone` 类型取第一个可用的区） |
+| `POST /api/data/source/zones` | `data_query` 或 `data_template` | `{ projectId, sourceId }` → `{ list }`，`zone` 类型数据源当前可查询的区 `[{ zoneId, url, status }]`，按区 ID 排序；`http` 类型返回空列表 |
 
 ### 查询模板
 
@@ -131,15 +137,17 @@ if (!MessageDigest.isEqual(expected.getBytes(), request.getHeader("X-Admin-Signa
 
 | 接口 | 权限 |
 | --- | --- |
-| `POST /api/data/template/list` | `data_template` 或 `data_query` |
+| `POST /api/data/template/list` | `data_template` 或 `data_query`；每条带 `sourceName`、`sourceType`（查询页据此显示区服选择） |
 | `POST /api/data/template/create`、`update`、`remove` | `data_template:create`、`:update`、`:remove` |
 
 ### 数据查询
 
 | 接口 | 权限 | 说明 |
 | --- | --- | --- |
-| `POST /api/data/query` | `data_query` | `{ projectId, templateId, params, page, pageSize }`，`params` 为参数值 JSON 文本；返回 `{ total, list }`，`list` 原样透传 |
+| `POST /api/data/query` | `data_query` | `{ projectId, templateId, zoneIds, params, page, pageSize }`，`params` 为参数值 JSON 文本；返回 `{ total, list, failures }`，`list` 原样透传 |
 | `POST /api/data/query/export` | `data_query:export` | 同上不分页，最多 5 万行 |
+
+`zone` 类型数据源的模板：`zoneIds` 必填（一个或多个区 ID），每一行加上 `_zone`（区 ID）。多个区时同时查询各区，每个区都按同样的 `page`、`pageSize` 取一页，结果按区 ID 顺序合并，`total` 为各区之和；查询失败或已离线的区不影响其他区，记在 `failures`（`[{ zoneId, message }]`）。`http` 类型忽略 `zoneIds`，`failures` 为空。
 
 参数校验：必填为空返回 `100061`（「请填写「xxx」」）；数字、时间无法解析，是/否不是 true/false，下拉值不在选项里，文本超过 512 字，都返回 `100061`。
 
@@ -153,6 +161,8 @@ if (!MessageDigest.isEqual(expected.getBytes(), request.getHeader("X-Admin-Signa
 | `100057` | 业务数据源请求失败，消息里附带原因（无法连接、HTTP 状态、业务返回的 code 和 message 等） |
 | `100058` / `100059` / `100060` | 查询模板不存在 / 名称已存在 / 配置不合法 |
 | `100061` | 查询参数不合法 |
+| `100086` | 后台没有配置 ZooKeeper，不能使用按区自动发现 |
+| `100087` | 没有可用的区服（游戏服都不在线，或没有提供查询接口） |
 
 ### 安全约定
 
